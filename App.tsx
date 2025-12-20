@@ -54,33 +54,35 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   const sequenceTimer = useRef<number | null>(null);
   const ADMIN_SECRET = 'adminds1';
 
-  // GLOBAL Admin Access Trigger - Active Everywhere
+  // GLOBAL Admin Access Trigger - High Precision Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Catch keys globally
+      // Append key to buffer
       sequenceBuffer.current += e.key.toLowerCase();
       
       if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
       
-      if (sequenceBuffer.current.includes(ADMIN_SECRET)) {
+      // Check if buffer contains secret
+      if (sequenceBuffer.current.endsWith(ADMIN_SECRET)) {
         setIsAdminOpen(true);
         sequenceBuffer.current = '';
-        console.debug("ADMIN_MODE_ENGAGED");
+        console.debug("ADMIN_PANEL_BYPASS_ENGAGED");
       }
 
-      // Reset buffer after 1.5 seconds of silence
+      // Reset buffer after 2 seconds of inactivity
       sequenceTimer.current = window.setTimeout(() => {
         sequenceBuffer.current = '';
-      }, 1500);
+      }, 2000);
 
+      // Prevent buffer overflow
       if (sequenceBuffer.current.length > 50) {
         sequenceBuffer.current = sequenceBuffer.current.slice(-20);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
     };
   }, []);
@@ -98,14 +100,16 @@ PHASE 3: FORENSIC STEALTH EXECUTION
             loadUserHistory(valid.id);
           }
         }
-      } catch (e) { console.error("Boot error:", e); }
+      } catch (e) { console.error("Boot failure:", e); }
     };
     boot();
   }, []);
 
   const loadUserHistory = async (keyId: string) => {
-    const history = await db.getHistory(keyId);
-    setGenerationHistory(history);
+    try {
+      const history = await db.getHistory(keyId);
+      setGenerationHistory(history);
+    } catch (e) { console.warn("Failed to load history."); }
   };
 
   useEffect(() => {
@@ -129,7 +133,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
   const handleSynthesize = async () => {
     if (!baseImage && !canvasImage) {
-      setErrorLog({ message: "System failure: No source bitmap provided.", type: 'warning' });
+      setErrorLog({ message: "No source bitmap provided.", type: 'warning' });
       return;
     }
     if (!activeKey) return;
@@ -138,7 +142,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
     setErrorLog(null);
     try {
       const verify = await validateKey(activeKey.key);
-      if (!verify) throw new Error("License validation failure: Protocol terminated.");
+      if (!verify) throw new Error("License validation protocol failed.");
 
       const result = await processDocument(canvasImage || baseImage, request, options);
       
@@ -152,11 +156,11 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
       } else {
-        const msg = result.thinking || "Neural core returned empty bitstream.";
+        const msg = result.thinking || "Neural core returned non-pixel signal.";
         setErrorLog({ message: msg, type: 'error' });
       }
     } catch (err: any) {
-      setErrorLog({ message: err.message || "Synthesis pipeline crash.", type: 'error' });
+      setErrorLog({ message: err.message || "Synthesis engine exception.", type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -169,14 +173,12 @@ PHASE 3: FORENSIC STEALTH EXECUTION
     }
   }, [errorLog]);
 
-  // Main UI Components
   const renderMainContent = () => {
     if (!activeKey) return <AccessKeyLock onUnlock={onUnlock} />;
     if (!isAppReady) return <LoadingScreen onComplete={() => setIsAppReady(true)} />;
 
     return (
       <div className="flex h-screen w-screen bg-[#050508] text-white overflow-hidden fade-in">
-        {/* Side Control Bar */}
         <div className="w-[340px] flex-shrink-0 border-r border-red-900/10 flex flex-col bg-[#0a0a0c] glass-panel relative z-40">
           <header className="p-6 border-b border-red-900/10">
             <h1 className="mono text-2xl font-bold tracking-tighter">DOCUSYNTH <span className="text-red-600">PRO</span></h1>
@@ -205,12 +207,11 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
             <section>
               <label className="text-[9px] mono text-gray-500 uppercase block mb-2 font-bold tracking-widest">Synthesis Directives</label>
-              <textarea value={request.instructions} onChange={(e) => setRequest({...request, instructions: e.target.value})} className="w-full h-64 input-dark p-4 text-[10px] mono rounded-xl resize-none text-gray-400 focus:text-white leading-relaxed" spellCheck="false" />
+              <textarea value={request.instructions} onChange={(e) => setRequest({...request, instructions: e.target.value})} className="w-full h-80 input-dark p-4 text-[10px] mono rounded-xl resize-none text-gray-400 focus:text-white leading-relaxed" spellCheck="false" />
             </section>
           </div>
         </div>
 
-        {/* Workspace */}
         <main className="flex-1 relative flex flex-col min-w-0">
           <div className="h-14 border-b border-red-900/10 flex items-center justify-between px-6 bg-[#0a0a0c]/80 backdrop-blur-md z-30">
             <div className="flex items-center gap-4">
@@ -232,9 +233,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
   return (
     <>
-      {/* Global Notifications Layer */}
+      {/* Global Error Popups */}
       {errorLog && (
-        <div className="fixed top-6 right-6 z-[1000] flex items-center gap-4 bg-[#0a0a0c] border border-red-600/50 p-5 rounded-2xl shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-slide-in-right glass-panel max-w-md">
+        <div className="fixed top-6 right-6 z-[2000] flex items-center gap-4 bg-[#0a0a0c] border border-red-600/50 p-5 rounded-2xl shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-slide-in-right glass-panel max-w-md">
           <div className="flex-shrink-0 relative">
              <div className={`w-3 h-3 rounded-full ${errorLog.type === 'error' ? 'bg-red-600 animate-pulse shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 shadow-[0_0_10px_#eab308]'}`}></div>
           </div>
@@ -250,10 +251,10 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         </div>
       )}
 
-      {/* Primary Application Logic */}
+      {/* Primary Context */}
       {renderMainContent()}
 
-      {/* Global Admin Layer */}
+      {/* Universal Admin Access Layer */}
       {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
     </>
   );
