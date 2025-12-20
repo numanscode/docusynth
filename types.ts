@@ -41,4 +41,18 @@ export interface AdminStats {
   expiredKeys: number;
 }
 
-// Removed redundant aistudio declaration that was causing a conflict with the environment's global types.
+// Added explicit AIStudio interface to match the environment's expected type structure
+export interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
+/**
+ * AI Studio Key Selection API Augmentation
+ */
+declare global {
+  interface Window {
+    // Corrected to use the named AIStudio type and optional modifier to avoid modifier and type conflicts
+    aistudio?: AIStudio;
+  }
+}

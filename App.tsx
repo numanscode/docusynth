@@ -141,9 +141,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   const handleSynthesize = async () => {
     if (cooldown > 0) return;
 
-    // Check for API key selection as per mandatory guidelines for Gemini series
-    if (window.aistudio && !(await (window as any).aistudio.hasSelectedApiKey())) {
-      await (window as any).aistudio.openSelectKey();
+    // Required check for Gemini models: API key selection
+    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
+      await window.aistudio.openSelectKey();
     }
     
     if (!baseImage && !canvasImage) {
@@ -174,9 +174,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
         
-        // If it's a quota issue or missing entity, prompt the user to select a key again
-        if (result.quotaError && (window as any).aistudio?.openSelectKey) {
-          await (window as any).aistudio.openSelectKey();
+        // Handle potential quota or entity missing errors by re-prompting key selection
+        if (result.quotaError && window.aistudio) {
+          await window.aistudio.openSelectKey();
         }
       }
     } catch (err: any) {
