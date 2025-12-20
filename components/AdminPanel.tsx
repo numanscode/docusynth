@@ -4,6 +4,10 @@ import { AccessKey } from '../types';
 import { db, generateKey } from '../services/auth';
 import { testAiConnection } from '../services/gemini';
 
+// Fix: Use type assertion for window.aistudio to avoid conflicts with pre-existing global declarations in the environment.
+// This resolves "All declarations of 'aistudio' must have identical modifiers" and type mismatch errors.
+const getAiStudio = () => (window as any).aistudio;
+
 interface AdminPanelProps { onClose: () => void; }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
@@ -15,8 +19,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   // Global Config State
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [activeModel, setActiveModel] = useState('gemini-2.5-flash-image');
+  const [hasPersonalKey, setHasPersonalKey] = useState(false);
   
   // AI Test State
   const [testState, setTestState] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({
@@ -30,24 +34,51 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   }, []);
 
   const loadOperationalConfig = async () => {
-    const key = await db.getSettings('gemini_api_key');
-    setApiKeyInput(key);
+    // Fix: Removed loading of gemini_api_key as manual key management is prohibited.
+    const model = await db.getSettings('active_model');
+    if (model) setActiveModel(model);
+    
+    // Check personal key status using the provided window.aistudio interface
+    const aistudio = getAiStudio();
+    if (aistudio) {
+      try {
+        const hasKey = await aistudio.hasSelectedApiKey();
+        setHasPersonalKey(hasKey);
+      } catch (e) {
+        console.error("Failed to check API key status", e);
+      }
+    }
   };
 
-  const handleSaveApiKey = async () => {
-    setSaveStatus('saving');
-    try {
-      await db.setSettings('gemini_api_key', apiKeyInput);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {
-      setSaveStatus('idle');
+  const handleSaveModel = async (model: string) => {
+    setActiveModel(model);
+    await db.setSettings('active_model', model);
+  };
+
+  const handlePersonalKeyConnect = async () => {
+    const aistudio = getAiStudio();
+    if (aistudio) {
+      try {
+        await aistudio.openSelectKey();
+        // Assume success as per instructions to avoid race conditions
+        setHasPersonalKey(true);
+      } catch (e) {
+        console.error("Failed to open key selection dialog", e);
+      }
     }
   };
 
   const handleTestAi = async () => {
     setTestState({ status: 'testing', message: 'Initiating Neural Probe...' });
     const result = await testAiConnection();
+    
+    // Fix: If request fails with "Requested entity was not found", reset key selection as per guidelines.
+    if (result.message?.includes("Requested entity was not found")) {
+      setHasPersonalKey(false);
+      const aistudio = getAiStudio();
+      if (aistudio) await aistudio.openSelectKey();
+    }
+
     setTestState({ 
       status: result.success ? 'success' : 'error', 
       message: result.message 
@@ -111,25 +142,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
           <button onClick={onClose} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full mono text-[8px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-950/40">Exit Interface</button>
         </header>
         <div className="flex-1 flex overflow-hidden">
-          <aside className="w-72 border-r border-white/[0.05] bg-[#050508]/90 p-5 space-y-6 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
+          <aside className="w-80 border-r border-white/[0.05] bg-[#050508]/90 p-5 space-y-6 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
             
             <section className="space-y-3">
               <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Operational Config</h3>
-              <div className="space-y-2">
-                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Global Gemini Key</label>
-                <input 
-                  type="password"
-                  placeholder="API_KEY_REQUIRED"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full bg-[#0c0c0e] border border-white/[0.05] p-3 rounded-xl mono text-[9px] text-white outline-none focus:border-red-600/40"
-                />
-                <button 
-                  onClick={handleSaveApiKey}
-                  className="w-full py-2.5 bg-red-900/10 hover:bg-red-600 text-red-600 hover:text-white border border-red-900/30 rounded-lg mono text-[8px] font-black uppercase tracking-widest transition-all"
-                >
-                  {saveStatus === 'idle' ? 'COMMIT KEY' : saveStatus === 'saving' ? 'UPLOADING...' : 'KEY SYNCED'}
-                </button>
+              <div className="space-y-3">
+                <div className="bg-red-900/5 border border-red-900/20 p-3 rounded-xl space-y-2">
+                   <p className="mono text-[7px] text-gray-500 uppercase font-bold">Quota Bypass (Recommended)</p>
+                   <button 
+                    onClick={handlePersonalKeyConnect}
+                    className={`w-full py-2.5 rounded-lg mono text-[8px] font-black uppercase tracking-widest transition-all border ${
+                      hasPersonalKey ? 'bg-green-900/20 border-green-600/50 text-green-500' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                    }`}
+                   >
+                     {hasPersonalKey ? 'PERSONAL KEY: CONNECTED' : 'CONNECT PERSONAL API KEY'}
+                   </button>
+                   <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[6px] mono text-gray-600 hover:text-red-500 transition-colors uppercase">Billing Documentation</a>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Active Synthesis Engine</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => handleSaveModel('gemini-2.5-flash-image')}
+                      className={`py-2 rounded-lg mono text-[7px] font-black border transition-all ${activeModel === 'gemini-2.5-flash-image' ? 'bg-red-600 text-white border-red-600 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-white/5 border-white/10 text-gray-500 hover:text-white'}`}
+                    >
+                      FLASH (NANO)
+                    </button>
+                    <button 
+                      onClick={() => handleSaveModel('gemini-3-pro-image-preview')}
+                      className={`py-2 rounded-lg mono text-[7px] font-black border transition-all ${activeModel === 'gemini-3-pro-image-preview' ? 'bg-red-600 text-white border-red-600 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-white/5 border-white/10 text-gray-500 hover:text-white'}`}
+                    >
+                      PRO (NANO 2)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Removed Global Master Key input to strictly follow Google GenAI guidelines which prohibit manual API key management UI elements. */}
               </div>
             </section>
 
@@ -155,20 +204,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 )}
               </div>
             </section>
-
-            <section className="space-y-2 pt-4 border-t border-white/[0.03]">
-              <h3 className="mono text-[8px] text-gray-500 font-black uppercase tracking-[0.3em]">Network Status</h3>
-              <div className="bg-black/40 border border-white/[0.05] p-3 rounded-xl space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="mono text-[6px] text-gray-500 uppercase">Cloud Sync</span>
-                  <span className={`mono text-[6px] uppercase ${syncError ? 'text-red-500' : 'text-green-500'}`}>{syncError || 'Online'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="mono text-[6px] text-gray-500 uppercase">Latency</span>
-                  <span className="mono text-[6px] text-white uppercase">Nominal</span>
-                </div>
-              </div>
-            </section>
             
             <section className="space-y-2 pt-4 border-t border-white/[0.03] shrink-0">
               <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Issue Protocol</h3>
@@ -183,9 +218,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
             <section className="opacity-40 space-y-1 pt-4 mt-auto">
               <div className="flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div>
-                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">GEMINI-2.5-FLASH-IMAGE_STABLE</p>
+                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">{activeModel.toUpperCase()}</p>
               </div>
-              <p className="mono text-[5px] uppercase tracking-widest text-gray-600">STRICT_PRODUCTION_ENDPOINT_ACTIVE</p>
+              <p className="mono text-[5px] uppercase tracking-widest text-gray-600">PRODUCTION_ENDPOINT_ACTIVE</p>
             </section>
           </aside>
           <main className="flex-1 bg-black/20 flex flex-col p-6 space-y-5 overflow-hidden">

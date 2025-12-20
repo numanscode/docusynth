@@ -4,18 +4,22 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 import { db } from "./auth";
 
 /**
- * DOCUSYNTH CORE: STABLE_GEMINI_SYNTHESIS
- * Enforced use of gemini-2.5-flash-image production endpoint.
+ * DOCUSYNTH CORE: MULTI-MODEL SYNTHESIS ENGINE
+ * Supports 'gemini-2.5-flash-image' and 'gemini-3-pro-image-preview'.
  */
 
-const getClient = async () => {
-  const operationalKey = await db.getSettings('gemini_api_key');
-  const apiKey = operationalKey || process.env.API_KEY;
-  
+const getModelName = async (): Promise<string> => {
+  const savedModel = await db.getSettings('active_model');
+  return savedModel || 'gemini-2.5-flash-image';
+};
+
+const getClient = () => {
+  // Creating instance right before making an API call to ensure it uses 
+  // the up-to-date API key from the aistudio dialog if one was selected.
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API_KEY_MISSING: No valid Operational License Key found.");
+    throw new Error("API_KEY_MISSING: No operational key found in environment.");
   }
-  
   return new GoogleGenAI({ apiKey });
 };
 
@@ -29,11 +33,12 @@ const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
 
 export const testAiConnection = async (): Promise<{ success: boolean; message: string; code?: number }> => {
   try {
-    const ai = await getClient();
+    const ai = getClient();
+    const model = await getModelName();
     const tinyImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
     
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: model,
       contents: {
         parts: [
           { inlineData: { data: tinyImage, mimeType: 'image/png' } },
@@ -43,16 +48,19 @@ export const testAiConnection = async (): Promise<{ success: boolean; message: s
     });
 
     if (response.candidates?.[0]) {
-      return { success: true, message: "Engine connection verified. Neural link active." };
+      return { success: true, message: `Link established with ${model}. Neural link active.` };
     }
-    return { success: false, message: "Empty response from engine." };
+    return { success: false, message: "Engine responded but returned no candidates." };
   } catch (err: any) {
     const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
-    return { 
-      success: false, 
-      message: isQuota ? "QUOTA_EXCEEDED: Your API key has 0 limit for this model. Use a Paid/Billing-enabled key." : err.message,
-      code: isQuota ? 429 : 500
-    };
+    if (isQuota) {
+      return { 
+        success: false, 
+        message: "QUOTA_EXCEEDED: This project has 0 limit. Open 'PERSONAL KEY' in Admin Panel to use your own key.",
+        code: 429 
+      };
+    }
+    return { success: false, message: err.message || "Connection refused." };
   }
 };
 
@@ -67,6 +75,7 @@ export const processDocument = async (
   }
 
   const { data, mimeType } = cleanBase64(baseImageBase64);
+  const model = await getModelName();
 
   const mappingDirectives = request.textReplacements
     .filter(r => r.key && r.value)
@@ -86,9 +95,9 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
   `.trim();
 
   try {
-    const ai = await getClient();
+    const ai = getClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: model,
       contents: {
         parts: [
           {
@@ -137,7 +146,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
     console.error("Gemini Synthesis Failure:", err);
     return { 
       thinking: isQuota 
-        ? "QUOTA_EXCEEDED: Your current API key project has zero (0) limit for image generation. Please upgrade to a Paid 'Pay-as-you-go' plan in Google AI Studio to enable this model."
+        ? "QUOTA_EXCEEDED: Your current project has zero limit for this model. Use the 'CONNECT PERSONAL KEY' button in Admin Panel."
         : `CORE_LINK_ERROR: ${err.message || "Synthesis failure."}`,
       quotaError: isQuota
     };
