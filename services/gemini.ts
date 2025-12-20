@@ -4,23 +4,13 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 import { db } from "./auth";
 
 /**
- * DOCUSYNTH CORE: MULTI-MODEL SYNTHESIS ENGINE
- * Supports 'gemini-2.5-flash-image' and 'gemini-3-pro-image-preview'.
+ * DOCUSYNTH CORE: NEURAL SYNTHESIS ENGINE
+ * Strictly follows @google/genai SDK initialization guidelines.
  */
 
 const getModelName = async (): Promise<string> => {
   const savedModel = await db.getSettings('active_model');
   return savedModel || 'gemini-2.5-flash-image';
-};
-
-const getClient = () => {
-  // Creating instance right before making an API call to ensure it uses 
-  // the up-to-date API key from the aistudio dialog if one was selected.
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING: No operational key found in environment.");
-  }
-  return new GoogleGenAI({ apiKey });
 };
 
 const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
@@ -33,7 +23,8 @@ const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
 
 export const testAiConnection = async (): Promise<{ success: boolean; message: string; code?: number }> => {
   try {
-    const ai = getClient();
+    // CRITICAL: New instance right before call ensures up-to-date key from dialog
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = await getModelName();
     const tinyImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
     
@@ -48,19 +39,19 @@ export const testAiConnection = async (): Promise<{ success: boolean; message: s
     });
 
     if (response.candidates?.[0]) {
-      return { success: true, message: `Link established with ${model}. Neural link active.` };
+      return { success: true, message: `Neural link active on ${model}.` };
     }
-    return { success: false, message: "Engine responded but returned no candidates." };
+    return { success: false, message: "Engine silent. No candidates returned." };
   } catch (err: any) {
     const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
     if (isQuota) {
       return { 
         success: false, 
-        message: "QUOTA_EXCEEDED: This project has 0 limit. Open 'PERSONAL KEY' in Admin Panel to use your own key.",
+        message: "QUOTA_EXCEEDED: 0 limit detected. Use 'CONNECT PERSONAL KEY' button.",
         code: 429 
       };
     }
-    return { success: false, message: err.message || "Connection refused." };
+    return { success: false, message: err.message || "Connection refused by host." };
   }
 };
 
@@ -70,9 +61,7 @@ export const processDocument = async (
   options: ProcessingOptions
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
-  if (!baseImageBase64) {
-    return { thinking: "SOURCE_EMPTY: Provide document image." };
-  }
+  if (!baseImageBase64) return { thinking: "SOURCE_EMPTY." };
 
   const { data, mimeType } = cleanBase64(baseImageBase64);
   const model = await getModelName();
@@ -95,24 +84,18 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
   `.trim();
 
   try {
-    const ai = getClient();
+    // CRITICAL: Fresh instance with injected key
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: model,
       contents: {
         parts: [
-          {
-            inlineData: {
-              data: data,
-              mimeType: mimeType,
-            },
-          },
-          {
-            text: finalPrompt,
-          },
+          { inlineData: { data: data, mimeType: mimeType } },
+          { text: finalPrompt }
         ],
       },
       config: {
-        temperature: 0.7,
+        temperature: 1.0, // High entropy for realistic texture synthesis
         topP: 0.95,
         topK: 64,
       }
@@ -122,32 +105,22 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
       return { thinking: "SYNTH_FAILURE: Neural stream empty." };
     }
 
-    const candidate = response.candidates[0];
     let generatedImageUrl: string | undefined;
-
-    for (const part of candidate.content.parts) {
+    for (const part of response.candidates[0].content.parts) {
       if (part.inlineData) {
         generatedImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
         break;
       }
     }
 
-    if (generatedImageUrl) {
-      return { imageUrl: generatedImageUrl };
-    }
+    if (generatedImageUrl) return { imageUrl: generatedImageUrl };
 
-    const textTrace = response.text || "No metadata returned.";
-    return { 
-      thinking: `SYNTH_REJECTED: Model returned text. Trace: ${textTrace}` 
-    };
+    return { thinking: `SYNTH_REJECTED: Model returned text. Trace: ${response.text || "Empty"}` };
     
   } catch (err: any) {
     const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
-    console.error("Gemini Synthesis Failure:", err);
     return { 
-      thinking: isQuota 
-        ? "QUOTA_EXCEEDED: Your current project has zero limit for this model. Use the 'CONNECT PERSONAL KEY' button in Admin Panel."
-        : `CORE_LINK_ERROR: ${err.message || "Synthesis failure."}`,
+      thinking: isQuota ? "QUOTA_EXCEEDED: Your project has zero limit. Use 'CONNECT PERSONAL KEY'." : `ERR: ${err.message}`,
       quotaError: isQuota
     };
   }
