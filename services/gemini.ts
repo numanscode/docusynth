@@ -9,7 +9,6 @@ import { db } from "./auth";
  */
 
 const getClient = async () => {
-  // Use strictly production key from settings
   const operationalKey = await db.getSettings('gemini_api_key');
   const apiKey = operationalKey || process.env.API_KEY;
   
@@ -28,10 +27,9 @@ const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
   return { mimeType: matches[1], data: matches[2] };
 };
 
-export const testAiConnection = async (): Promise<{ success: boolean; message: string }> => {
+export const testAiConnection = async (): Promise<{ success: boolean; message: string; code?: number }> => {
   try {
     const ai = await getClient();
-    // 1x1 Transparent PNG Pixel
     const tinyImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
     
     const response = await ai.models.generateContent({
@@ -39,7 +37,7 @@ export const testAiConnection = async (): Promise<{ success: boolean; message: s
       contents: {
         parts: [
           { inlineData: { data: tinyImage, mimeType: 'image/png' } },
-          { text: "Respond with the word 'READY' if you can see this image." }
+          { text: "Respond 'OK'." }
         ]
       }
     });
@@ -47,9 +45,14 @@ export const testAiConnection = async (): Promise<{ success: boolean; message: s
     if (response.candidates?.[0]) {
       return { success: true, message: "Engine connection verified. Neural link active." };
     }
-    return { success: false, message: "Engine responded but returned no candidates." };
+    return { success: false, message: "Empty response from engine." };
   } catch (err: any) {
-    return { success: false, message: err.message || "Connection refused by neural endpoint." };
+    const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
+    return { 
+      success: false, 
+      message: isQuota ? "QUOTA_EXCEEDED: Your API key has 0 limit for this model. Use a Paid/Billing-enabled key." : err.message,
+      code: isQuota ? 429 : 500
+    };
   }
 };
 
@@ -85,7 +88,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
   try {
     const ai = await getClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image', // Strict production-only model
+      model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           {
@@ -124,17 +127,18 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
       return { imageUrl: generatedImageUrl };
     }
 
-    // Access .text property directly as per guidelines
     const textTrace = response.text || "No metadata returned.";
     return { 
       thinking: `SYNTH_REJECTED: Model returned text. Trace: ${textTrace}` 
     };
     
   } catch (err: any) {
+    const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
     console.error("Gemini Synthesis Failure:", err);
-    const isQuota = err.message?.includes('429') || err.message?.includes('quota');
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "Synthesis failure."}`,
+      thinking: isQuota 
+        ? "QUOTA_EXCEEDED: Your current API key project has zero (0) limit for image generation. Please upgrade to a Paid 'Pay-as-you-go' plan in Google AI Studio to enable this model."
+        : `CORE_LINK_ERROR: ${err.message || "Synthesis failure."}`,
       quotaError: isQuota
     };
   }

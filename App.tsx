@@ -141,7 +141,7 @@ END STATE: The result must read as one authentic, unedited real-world photograph
   };
 
   const handleSynthesize = useCallback(async () => {
-    // 1. ATOMIC GUARD
+    // 1. ATOMIC GUARD (Synchronous check of ref and states)
     if (isProcessingRef.current || isLoading || cooldown > 0) {
       console.warn("SYNTH_MUTEX: Overlapping request blocked.");
       return;
@@ -153,10 +153,11 @@ END STATE: The result must read as one authentic, unedited real-world photograph
     }
     if (!activeKey) return;
 
-    // 2. LOCK ACQUISITION
+    // 2. IMMEDIATE LOCK ACQUISITION
     isProcessingRef.current = true;
     setIsLoading(true);
     setErrorLog(null);
+    console.log("SYNTH_PROTOCOL: Initiating single request sequence...");
 
     try {
       // 3. LICENSE VERIFICATION
@@ -174,9 +175,14 @@ END STATE: The result must read as one authentic, unedited real-world photograph
         };
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
-        setCooldown(30); // Mandatory recalibration
+        setCooldown(30); // Nominal recalibration
       } else {
-        setErrorLog({ message: result.thinking || "Synthesis failed.", type: 'error' });
+        if (result.quotaError) {
+          setCooldown(60); // Heavy recalibration for 429
+          setErrorLog({ message: "QUOTA EXHAUSTED: Model limit is 0 for this key. Use a Paid API key from AI Studio.", type: 'error' });
+        } else {
+          setErrorLog({ message: result.thinking || "Synthesis failed.", type: 'error' });
+        }
       }
     } catch (err: any) {
       setErrorLog({ message: err.message || "Synthesis error.", type: 'error' });
