@@ -141,11 +141,6 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   const handleSynthesize = async () => {
     if (cooldown > 0) return;
 
-    // Required check for Gemini models: API key selection
-    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-      await window.aistudio.openSelectKey();
-    }
-    
     if (!baseImage && !canvasImage) {
       setErrorLog({ message: "Please provide a source document image.", type: 'warning' });
       return;
@@ -173,11 +168,6 @@ PHASE 3: FORENSIC STEALTH EXECUTION
       } else {
         const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
-        
-        // Handle potential quota or entity missing errors by re-prompting key selection
-        if (result.quotaError && window.aistudio) {
-          await window.aistudio.openSelectKey();
-        }
       }
     } catch (err: any) {
       setErrorLog({ message: err.message || "An unexpected error occurred during processing.", type: 'error' });
@@ -194,7 +184,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
       <div className="flex h-screen w-screen bg-[#050508] text-white overflow-hidden fade-in">
         <div className="w-[340px] flex-shrink-0 border-r border-red-900/10 flex flex-col bg-[#0a0a0c] glass-panel relative z-40">
           <header className="p-6 border-b border-red-900/10">
-            <h1 className="mono text-2xl font-bold tracking-tighter">DOCUSYNTH <span className="text-red-600">PRO</span></h1>
+            <h1 className="mono text-2xl font-bold tracking-tighter text-white">DOCUSYNTH <span className="text-red-600">PRO</span></h1>
             <div className="text-[8px] mono text-red-500 font-bold tracking-[0.3em] mt-1">{timeRemaining}</div>
           </header>
           

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AccessKey } from '../types';
 import { db, generateKey } from '../services/auth';
+import { getOperationalKey, setOperationalKey } from '../services/keys';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -14,9 +15,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(true);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [globalKey, setGlobalKey] = useState('');
 
   useEffect(() => {
     refreshKeys();
+    setGlobalKey(getOperationalKey());
   }, []);
 
   const refreshKeys = async () => {
@@ -30,6 +33,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleSaveGlobalKey = () => {
+    setOperationalKey(globalKey);
+    setCopyFeedback('GLOBAL_KEY_SAVED');
+    setTimeout(() => setCopyFeedback(null), 2000);
   };
 
   const handleGenerate = async () => {
@@ -96,7 +105,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          <aside className="w-64 border-r border-white/[0.05] bg-[#050508]/90 p-4 space-y-4 shrink-0 flex flex-col">
+          <aside className="w-64 border-r border-white/[0.05] bg-[#050508]/90 p-4 space-y-4 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
             <section className="space-y-2 shrink-0">
               <h3 className="mono text-[8px] text-gray-500 font-black uppercase tracking-[0.3em]">Network Stats</h3>
               <div className="grid grid-cols-2 gap-2">
@@ -109,6 +118,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     <p className="text-[6px] mono text-gray-600 uppercase font-bold tracking-widest mt-0.5">{s.label}</p>
                   </div>
                 ))}
+              </div>
+            </section>
+
+            <section className="space-y-2 pt-4 border-t border-white/[0.03] shrink-0">
+              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Global Operational Key</h3>
+              <div className="space-y-2">
+                <input 
+                  type="password" 
+                  placeholder="PASTE GEMINI API KEY" 
+                  value={globalKey}
+                  onChange={(e) => setGlobalKey(e.target.value)}
+                  className="w-full bg-[#0c0c0e] border border-white/[0.05] p-2 rounded-lg mono text-[8px] text-white outline-none focus:border-red-600/40"
+                />
+                <button 
+                  onClick={handleSaveGlobalKey}
+                  className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 border border-red-900/30 rounded-lg mono text-[7px] font-black uppercase tracking-widest transition-all"
+                >
+                  {copyFeedback === 'GLOBAL_KEY_SAVED' ? 'KEY UPDATED ✓' : 'SAVE OPERATIONAL KEY'}
+                </button>
+                <p className="text-[5px] mono text-gray-600 uppercase leading-relaxed text-center">Required for Neural Reconstruction Engine</p>
               </div>
             </section>
 
@@ -141,7 +170,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                {filteredKeys.map((k, idx) => {
+                {filteredKeys.map((k) => {
                   const isExpired = k.expiresAt && k.expiresAt < now;
                   const isActive = k.activatedAt && !isExpired && !k.revoked;
                   const isCopied = copyFeedback === k.key;

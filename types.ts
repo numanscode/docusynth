@@ -40,17 +40,3 @@ export interface AdminStats {
   activeKeys: number;
   expiredKeys: number;
 }
-
-/**
- * Renamed AIStudioAPI to AIStudio to match the required global type definition for window.aistudio.
- */
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
-declare global {
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}

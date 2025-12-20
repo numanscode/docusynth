@@ -36,12 +36,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     setTextReplacements(nextReplacements);
   };
 
-  const handleKeySelect = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-    }
-  };
-
   const isButtonDisabled = isLoading || cooldown > 0;
 
   return (
@@ -51,12 +45,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="w-1.5 h-1.5 rounded-full bg-red-600 shadow-[0_0_10px_#dc2626]"></div>
           <h2 className="mono text-[10px] font-bold uppercase tracking-[0.3em] text-red-600">Settings</h2>
         </div>
-        <button 
-          onClick={handleKeySelect}
-          className="text-[7px] mono text-gray-500 hover:text-white uppercase font-bold border border-white/5 px-2 py-1 rounded hover:bg-white/5 transition-all"
-        >
-          Manage API Link
-        </button>
       </div>
 
       <section className="space-y-4">
@@ -71,7 +59,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
         <div className="space-y-3">
           {textReplacements.map((r, i) => (
-            <div key={i} className="flex flex-col gap-2 p-3 bg-red-900/5 border border-red-900/10 rounded-xl hover:border-red-600/20 transition-colors">
+            <div key={i} className="flex flex-col gap-2 p-3 bg-red-950/5 border border-red-900/10 rounded-xl hover:border-red-600/20 transition-colors">
               <div className="flex gap-2">
                 <input 
                   placeholder="ORIGINAL TEXT" 
@@ -97,12 +85,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <section className="space-y-3">
         <div className="flex items-center gap-3 p-4 border border-red-900/10 rounded-xl bg-red-900/5">
            <svg className={`w-4 h-4 text-red-600 ${isLoading ? 'animate-spin' : cooldown > 0 ? 'opacity-20' : 'animate-pulse'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-           <p className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
+           <div className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
              ENGINE: <span className="text-white">Gemini 2.5 Flash Image</span><br/>
              STATUS: <span className={cooldown > 0 ? 'text-yellow-600' : 'text-green-500'}>
                {isLoading ? 'Processing Neural Streams' : cooldown > 0 ? `Recalibration: ${cooldown}s` : 'System Operational'}
              </span>
-           </p>
+           </div>
         </div>
       </section>
 

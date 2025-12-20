@@ -1,8 +1,14 @@
 
 /**
- * DOCUSYNTH ENGINE CORE
- * Mandatory Environment Configuration Required.
+ * DOCUSYNTH ENGINE CORE: KEY MANAGEMENT
+ * Handles persistence of the Global Operational API Key.
  */
+const STORAGE_KEY = 'ds_global_api_key';
+
 export const getOperationalKey = (): string => {
-  return process.env.API_KEY || '';
+  return localStorage.getItem(STORAGE_KEY) || '';
+};
+
+export const setOperationalKey = (key: string): void => {
+  localStorage.setItem(STORAGE_KEY, key);
 };

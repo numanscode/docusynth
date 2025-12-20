@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { ProcessingOptions, ModificationRequest } from "../types";
+import { getOperationalKey } from "./keys";
 
 /**
  * DOCUSYNTH CORE: GEMINI_FLASH_IMAGE_SYNTHESIS_V1
@@ -12,20 +13,17 @@ export const processDocument = async (
   options: ProcessingOptions
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
-  // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-  const apiKey = process.env.API_KEY;
+  const apiKey = getOperationalKey();
   
   if (!apiKey) {
-    // We return a specific message that triggers the key selection flow in the UI.
     return { 
-      thinking: "CORE_LINK_ERROR: No operational API key detected in process.env. Please ensure API_KEY is set in Vercel or use 'Manage API Link' to select a key manually.",
+      thinking: "CORE_LINK_ERROR: No operational API key detected. System administrator must configure the Global Operational Key in the Control Node Sigma (Admin Panel).",
       quotaError: true 
     };
   }
 
-  // Create fresh instance right before making an API call to ensure it uses the current key.
-  // Using process.env.API_KEY directly as per SDK requirements.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+  // Create fresh instance right before making an API call
+  const ai = new GoogleGenAI({ apiKey });
   
   const mappingDirectives = request.textReplacements
     .filter(r => r.key && r.value)
@@ -98,15 +96,15 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
     console.error("Gemini Engine Exception:", err);
     
     const msg = err.message || "";
-    // Check for quota/billing errors or missing project errors.
     const isQuotaError = msg.includes('429') || 
                         msg.includes('quota') || 
                         msg.includes('limit: 0') ||
-                        msg.includes('Requested entity was not found');
+                        msg.includes('Requested entity was not found') ||
+                        msg.includes('API key not valid');
 
     if (isQuotaError) {
       return { 
-        thinking: "RESOURCE_EXHAUSTED: Project limit reached or project not found. Use 'Manage API Link' to connect a paid GCP project with billing enabled.",
+        thinking: "RESOURCE_EXHAUSTED: Operational Key error or quota exceeded. Update the Global Key in the Admin Panel.",
         quotaError: true
       };
     }
