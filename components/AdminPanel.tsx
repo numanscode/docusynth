@@ -4,8 +4,6 @@ import { AccessKey } from '../types';
 import { db, generateKey } from '../services/auth';
 import { testAiConnection } from '../services/gemini';
 
-const getAiStudio = () => (window as any).aistudio;
-
 interface AdminPanelProps { onClose: () => void; }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
@@ -14,8 +12,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [search, setSearch] = useState('');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(true);
+  
+  const [apiKeyInput, setApiKeyInput] = useState('');
   const [activeModel, setActiveModel] = useState('gemini-2.5-flash-image');
-  const [hasPersonalKey, setHasPersonalKey] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
   const [testState, setTestState] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({
     status: 'idle', message: ''
   });
@@ -26,14 +27,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   }, []);
 
   const loadOperationalConfig = async () => {
+    const key = await db.getSettings('gemini_api_key');
     const model = await db.getSettings('active_model');
+    if (key) setApiKeyInput(key);
     if (model) setActiveModel(model);
-    
-    const aistudio = getAiStudio();
-    if (aistudio) {
-      const hasKey = await aistudio.hasSelectedApiKey();
-      setHasPersonalKey(hasKey);
-    }
   };
 
   const handleSaveModel = async (model: string) => {
@@ -41,24 +38,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     await db.setSettings('active_model', model);
   };
 
-  const handlePersonalKeyConnect = async () => {
-    const aistudio = getAiStudio();
-    if (aistudio) {
-      await aistudio.openSelectKey();
-      setHasPersonalKey(true);
+  const handleSaveApiKey = async () => {
+    setSaveStatus('saving');
+    try {
+      await db.setSettings('gemini_api_key', apiKeyInput.trim());
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('idle');
     }
   };
 
   const handleTestAi = async () => {
     setTestState({ status: 'testing', message: 'Initiating Neural Probe...' });
     const result = await testAiConnection();
-    
-    if (result.message?.includes("Requested entity was not found")) {
-      setHasPersonalKey(false);
-      const aistudio = getAiStudio();
-      if (aistudio) await aistudio.openSelectKey();
-    }
-
     setTestState({ 
       status: result.success ? 'success' : 'error', 
       message: result.message 
@@ -121,25 +114,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
           <aside className="w-80 border-r border-white/[0.05] bg-[#050508]/90 p-5 space-y-6 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
             
             <section className="space-y-3">
-              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Operational Config</h3>
-              <div className="bg-red-900/5 border border-red-900/20 p-4 rounded-2xl space-y-3">
-                <p className="mono text-[8px] text-gray-500 uppercase font-bold text-center">Neural Link Management</p>
+              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Neural Engine Config</h3>
+              
+              <div className="space-y-2">
+                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Global Operational Key</label>
+                <input 
+                  type="password"
+                  placeholder="API_KEY_REQUIRED"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="w-full bg-[#0c0c0e] border border-white/[0.05] p-3 rounded-xl mono text-[9px] text-white outline-none focus:border-red-600/40"
+                />
                 <button 
-                  onClick={handlePersonalKeyConnect}
-                  className={`w-full py-3 rounded-xl mono text-[9px] font-black uppercase tracking-widest transition-all border ${
-                    hasPersonalKey ? 'bg-green-900/20 border-green-600/50 text-green-500' : 'bg-white/10 border-white/20 text-white'
-                  }`}
+                  onClick={handleSaveApiKey}
+                  className="w-full py-2.5 bg-red-900/10 hover:bg-red-600 text-red-600 hover:text-white border border-red-900/30 rounded-lg mono text-[8px] font-black uppercase tracking-widest transition-all"
                 >
-                  {hasPersonalKey ? 'KEY STATUS: CONNECTED' : 'SELECT OPERATIONAL KEY'}
+                  {saveStatus === 'idle' ? 'COMMIT KEY' : saveStatus === 'saving' ? 'UPLOADING...' : 'KEY SYNCED'}
                 </button>
-                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[7px] mono text-gray-600 hover:text-red-500 transition-colors uppercase">View Billing Requirements</a>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Synthesis Engine Tier</label>
+              <div className="space-y-2 pt-2">
+                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Synthesis Tier</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => handleSaveModel('gemini-2.5-flash-image')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-2.5-flash-image' ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-900/20' : 'bg-white/5 border-white/10 text-gray-500'}`}>FLASH (NANO)</button>
-                  <button onClick={() => handleSaveModel('gemini-3-pro-image-preview')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-3-pro-image-preview' ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-900/20' : 'bg-white/5 border-white/10 text-gray-500'}`}>PRO (NANO 2)</button>
+                  <button onClick={() => handleSaveModel('gemini-2.5-flash-image')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-2.5-flash-image' ? 'bg-red-600 text-white border-red-600' : 'bg-white/5 border-white/10 text-gray-500'}`}>FLASH</button>
+                  <button onClick={() => handleSaveModel('gemini-3-pro-image-preview')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-3-pro-image-preview' ? 'bg-red-600 text-white border-red-600' : 'bg-white/5 border-white/10 text-gray-500'}`}>PRO</button>
                 </div>
               </div>
             </section>

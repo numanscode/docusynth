@@ -4,9 +4,14 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 import { db } from "./auth";
 
 /**
- * DOCUSYNTH CORE: NEURAL SYNTHESIS ENGINE
- * Strictly follows @google/genai SDK initialization guidelines.
+ * DOCUSYNTH CORE: UNIFIED NEURAL SYNTHESIS
+ * Optimized for Gemini 2.5 Flash (Nano Banana) with Global Admin Key.
  */
+
+const getOperationalKey = async (): Promise<string> => {
+  const savedKey = await db.getSettings('gemini_api_key');
+  return savedKey || process.env.API_KEY || '';
+};
 
 const getModelName = async (): Promise<string> => {
   const savedModel = await db.getSettings('active_model');
@@ -23,8 +28,10 @@ const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
 
 export const testAiConnection = async (): Promise<{ success: boolean; message: string; code?: number }> => {
   try {
-    // CRITICAL: New instance right before call ensures up-to-date key from dialog
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = await getOperationalKey();
+    if (!apiKey) throw new Error("OPERATIONAL_KEY_MISSING");
+
+    const ai = new GoogleGenAI({ apiKey });
     const model = await getModelName();
     const tinyImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
     
@@ -39,19 +46,16 @@ export const testAiConnection = async (): Promise<{ success: boolean; message: s
     });
 
     if (response.candidates?.[0]) {
-      return { success: true, message: `Neural link active on ${model}.` };
+      return { success: true, message: `Global Link Active: ${model}` };
     }
-    return { success: false, message: "Engine silent. No candidates returned." };
+    return { success: false, message: "Engine response incomplete." };
   } catch (err: any) {
     const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
-    if (isQuota) {
-      return { 
-        success: false, 
-        message: "QUOTA_EXCEEDED: 0 limit detected. Use 'CONNECT PERSONAL KEY' button.",
-        code: 429 
-      };
-    }
-    return { success: false, message: err.message || "Connection refused by host." };
+    return { 
+      success: false, 
+      message: isQuota ? "QUOTA_EXHAUSTED: Admin key has hit its limit." : err.message,
+      code: isQuota ? 429 : 500
+    };
   }
 };
 
@@ -61,7 +65,10 @@ export const processDocument = async (
   options: ProcessingOptions
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
-  if (!baseImageBase64) return { thinking: "SOURCE_EMPTY." };
+  if (!baseImageBase64) return { thinking: "SOURCE_MISSING" };
+
+  const apiKey = await getOperationalKey();
+  if (!apiKey) return { thinking: "OPERATIONAL_KEY_NOT_CONFIGURED" };
 
   const { data, mimeType } = cleanBase64(baseImageBase64);
   const model = await getModelName();
@@ -84,8 +91,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
   `.trim();
 
   try {
-    // CRITICAL: Fresh instance with injected key
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: model,
       contents: {
@@ -95,14 +101,14 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
         ],
       },
       config: {
-        temperature: 1.0, // High entropy for realistic texture synthesis
+        temperature: 0.9,
         topP: 0.95,
         topK: 64,
       }
     });
 
     if (!response.candidates || response.candidates.length === 0) {
-      return { thinking: "SYNTH_FAILURE: Neural stream empty." };
+      return { thinking: "NEURAL_STREAM_EMPTY" };
     }
 
     let generatedImageUrl: string | undefined;
@@ -114,13 +120,12 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
     }
 
     if (generatedImageUrl) return { imageUrl: generatedImageUrl };
-
-    return { thinking: `SYNTH_REJECTED: Model returned text. Trace: ${response.text || "Empty"}` };
+    return { thinking: `SYNTH_ERROR: Model returned text. Trace: ${response.text || "None"}` };
     
   } catch (err: any) {
     const isQuota = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
     return { 
-      thinking: isQuota ? "QUOTA_EXCEEDED: Your project has zero limit. Use 'CONNECT PERSONAL KEY'." : `ERR: ${err.message}`,
+      thinking: isQuota ? "QUOTA_EXHAUSTED" : `CORE_ERR: ${err.message}`,
       quotaError: isQuota
     };
   }
