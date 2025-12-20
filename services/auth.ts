@@ -2,10 +2,19 @@
 import { AccessKey, HistoryEntry } from '../types';
 import { supabase } from './supabase';
 
+// Helper to ensure dates are always numbers (ms) regardless of Supabase format
+const parseTimestamp = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  const d = new Date(val).getTime();
+  return isNaN(d) ? 0 : d;
+};
+
 // Fallback persistence for when Supabase is unreachable
 const localVault = {
   keys: 'ds_local_keys',
-  history: 'ds_local_history'
+  history: 'ds_local_history',
+  settings: 'ds_local_settings'
 };
 
 const getLocal = <T>(key: string, fallback: T): T => {
@@ -20,13 +29,39 @@ const setLocal = (key: string, val: any) => {
 };
 
 export const db = {
+  async getSettings(id: string): Promise<string> {
+    try {
+      const { data, error } = await supabase.from('ds_settings').select('value').eq('id', id).single();
+      if (error) throw error;
+      return data?.value || '';
+    } catch {
+      const settings = getLocal<Record<string, string>>(localVault.settings, {});
+      return settings[id] || '';
+    }
+  },
+
+  async setSettings(id: string, value: string): Promise<void> {
+    const settings = getLocal<Record<string, string>>(localVault.settings, {});
+    settings[id] = value;
+    setLocal(localVault.settings, settings);
+    try {
+      await supabase.from('ds_settings').upsert({ id, value, updated_at: new Date().toISOString() });
+    } catch (e) { console.error("Settings Sync Failure:", e); }
+  },
+
   async getKeys(): Promise<AccessKey[]> {
     try {
       const { data, error } = await supabase.from('ds_access_keys').select('*');
       if (error) throw error;
       return (data || []).map(k => ({
-        id: k.id, key: k.key, duration: k.duration, durationMs: k.duration_ms,
-        createdAt: k.created_at, activatedAt: k.activated_at, expiresAt: k.expires_at, revoked: k.revoked
+        id: k.id,
+        key: k.key,
+        duration: k.duration,
+        durationMs: k.duration_ms,
+        createdAt: parseTimestamp(k.created_at),
+        activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined,
+        expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined,
+        revoked: !!k.revoked
       }));
     } catch (e) {
       console.warn("Auth Service: Supabase unreachable, using Local Vault.");
@@ -38,8 +73,14 @@ export const db = {
     setLocal(localVault.keys, keys);
     try {
       const dbKeys = keys.map(k => ({
-        id: k.id, key: k.key, duration: k.duration, duration_ms: k.durationMs,
-        created_at: k.createdAt, activated_at: k.activatedAt, expires_at: k.expiresAt, revoked: k.revoked
+        id: k.id, 
+        key: k.key, 
+        duration: k.duration, 
+        duration_ms: k.durationMs,
+        created_at: new Date(k.createdAt).toISOString(), 
+        activated_at: k.activatedAt ? new Date(k.activatedAt).toISOString() : null, 
+        expires_at: k.expiresAt ? new Date(k.expiresAt).toISOString() : null, 
+        revoked: k.revoked
       }));
       await supabase.from('ds_access_keys').upsert(dbKeys);
     } catch (e) { console.error("Sync Failure:", e); }
@@ -52,8 +93,12 @@ export const db = {
       const { data, error } = await query;
       if (error) throw error;
       return (data || []).map(h => ({
-        id: h.id, keyId: h.key_id, imageUrl: h.image_url, timestamp: h.timestamp,
-        prompt: h.prompt, textReplacements: h.text_replacements || []
+        id: h.id, 
+        keyId: h.key_id, 
+        imageUrl: h.image_url, 
+        timestamp: parseTimestamp(h.timestamp),
+        prompt: h.prompt, 
+        textReplacements: h.text_replacements || []
       }));
     } catch {
       const local = getLocal<HistoryEntry[]>(localVault.history, []);
@@ -66,15 +111,18 @@ export const db = {
     setLocal(localVault.history, [...local, entry]);
     try {
       await supabase.from('ds_history').insert([{
-        id: entry.id, key_id: entry.keyId, image_url: entry.imageUrl,
-        timestamp: entry.timestamp, prompt: entry.prompt, text_replacements: entry.textReplacements
+        id: entry.id, 
+        key_id: entry.keyId, 
+        image_url: entry.imageUrl,
+        timestamp: new Date(entry.timestamp).toISOString(), 
+        prompt: entry.prompt, 
+        text_replacements: entry.textReplacements
       }]);
     } catch {}
   }
 };
 
 export const validateKey = async (keyString: string): Promise<AccessKey | null> => {
-  // EMERGENCY BYPASS FOR PRODUCTION READINESS
   if (keyString === 'DS-DEV-ROOT') {
     return {
       id: 'root', key: 'DS-DEV-ROOT', duration: '1month', durationMs: 999999999,
@@ -88,14 +136,23 @@ export const validateKey = async (keyString: string): Promise<AccessKey | null> 
     
     const k = keys[0];
     const key: AccessKey = {
-      id: k.id, key: k.key, duration: k.duration, durationMs: k.duration_ms,
-      createdAt: k.created_at, activatedAt: k.activated_at, expiresAt: k.expires_at, revoked: k.revoked
+      id: k.id, 
+      key: k.key, 
+      duration: k.duration, 
+      durationMs: k.duration_ms,
+      createdAt: parseTimestamp(k.created_at), 
+      activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined, 
+      expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined, 
+      revoked: !!k.revoked
     };
 
     if (!key.activatedAt) {
       key.activatedAt = Date.now();
       key.expiresAt = Date.now() + key.durationMs;
-      await supabase.from('ds_access_keys').update({ activated_at: key.activatedAt, expires_at: key.expiresAt }).eq('id', key.id);
+      await supabase.from('ds_access_keys').update({ 
+        activated_at: new Date(key.activatedAt).toISOString(), 
+        expires_at: new Date(key.expiresAt).toISOString() 
+      }).eq('id', key.id);
     }
     return (key.expiresAt && Date.now() > key.expiresAt) ? null : key;
   } catch {
@@ -120,8 +177,12 @@ export const generateKey = async (duration: AccessKey['duration']): Promise<Acce
 
   try {
     await supabase.from('ds_access_keys').insert([{
-      id: newKey.id, key: newKey.key, duration: newKey.duration,
-      duration_ms: newKey.durationMs, created_at: newKey.createdAt, revoked: false
+      id: newKey.id, 
+      key: newKey.key, 
+      duration: newKey.duration,
+      duration_ms: newKey.durationMs, 
+      created_at: new Date(newKey.createdAt).toISOString(), 
+      revoked: false
     }]);
   } catch {}
   return newKey;

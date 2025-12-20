@@ -2,11 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { AccessKey } from '../types';
 import { db, generateKey } from '../services/auth';
-import { getOperationalKey, setOperationalKey } from '../services/keys';
 
-interface AdminPanelProps {
-  onClose: () => void;
-}
+interface AdminPanelProps { onClose: () => void; }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [keys, setKeys] = useState<AccessKey[]>([]);
@@ -15,12 +12,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(true);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
-  const [globalKey, setGlobalKey] = useState('');
+
+  // Global Config State
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
     refreshKeys();
-    setGlobalKey(getOperationalKey());
+    loadOperationalConfig();
   }, []);
+
+  const loadOperationalConfig = async () => {
+    const key = await db.getSettings('gemini_api_key');
+    setApiKeyInput(key);
+  };
+
+  const handleSaveApiKey = async () => {
+    setSaveStatus('saving');
+    try {
+      await db.setSettings('gemini_api_key', apiKeyInput);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('idle');
+    }
+  };
 
   const refreshKeys = async () => {
     setIsSyncing(true);
@@ -35,29 +51,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     }
   };
 
-  const handleSaveGlobalKey = () => {
-    setOperationalKey(globalKey);
-    setCopyFeedback('GLOBAL_KEY_SAVED');
-    setTimeout(() => setCopyFeedback(null), 2000);
-  };
-
   const handleGenerate = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
     setErrorStatus(null);
-    
     try {
       const newKey = await generateKey(selectedDuration);
-      if (newKey) {
-        await refreshKeys();
-      } else {
-        setErrorStatus("SCHEMA_MISMATCH");
-      }
-    } catch (e) {
-      setErrorStatus("INTERNAL_ERROR");
-    } finally {
-      setIsSyncing(false);
-    }
+      if (newKey) await refreshKeys();
+      else setErrorStatus("SCHEMA_MISMATCH");
+    } catch (e) { setErrorStatus("INTERNAL_ERROR"); }
+    finally { setIsSyncing(false); }
   };
 
   const handleRevoke = async (id: string) => {
@@ -65,9 +68,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       const updated = keys.map(k => k.id === id ? { ...k, revoked: true } : k);
       await db.saveKeys(updated);
       setKeys(updated);
-    } catch (e) {
-      console.error("Revoke failed:", e);
-    }
+    } catch (e) { console.error("Revoke failed:", e); }
   };
 
   const copyToClipboard = (text: string) => {
@@ -76,23 +77,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
     setTimeout(() => setCopyFeedback(null), 2000);
   };
 
-  const filteredKeys = keys.filter(k => 
-    k.key.toLowerCase().includes(search.toLowerCase())
-  ).reverse();
-
+  const filteredKeys = keys.filter(k => k.key.toLowerCase().includes(search.toLowerCase())).reverse();
   const now = Date.now();
   const stats = {
     active: keys.filter(k => !k.revoked && k.expiresAt && k.expiresAt > now).length,
-    pending: keys.filter(k => !k.revoked && !k.activatedAt).length,
-    revoked: keys.filter(k => k.revoked).length,
     total: keys.length
   };
 
   return (
     <div className="fixed inset-0 z-[400] bg-[#020204] flex flex-col animate-fade-in overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-           style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
-      
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
       <div className="flex-1 flex flex-col relative z-10 h-full">
         <header className="h-14 border-b border-white/[0.05] flex items-center justify-between px-6 bg-[#09090b]/90 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">
@@ -103,16 +97,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
           </div>
           <button onClick={onClose} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full mono text-[8px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-950/40">Close Overlay</button>
         </header>
-
         <div className="flex-1 flex overflow-hidden">
-          <aside className="w-64 border-r border-white/[0.05] bg-[#050508]/90 p-4 space-y-4 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
-            <section className="space-y-2 shrink-0">
+          <aside className="w-72 border-r border-white/[0.05] bg-[#050508]/90 p-5 space-y-6 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
+            
+            <section className="space-y-3">
+              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Core Configuration</h3>
+              <div className="space-y-2">
+                <label className="text-[7px] mono text-gray-500 uppercase font-bold">Global API License</label>
+                <div className="relative">
+                  <input 
+                    type="password"
+                    placeholder="API_KEY_REQUIRED"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    className="w-full bg-[#0c0c0e] border border-white/[0.05] p-3 rounded-xl mono text-[9px] text-white outline-none focus:border-red-600/40"
+                  />
+                  <button 
+                    onClick={handleSaveApiKey}
+                    className="mt-2 w-full py-2.5 bg-red-900/10 hover:bg-red-600 text-red-600 hover:text-white border border-red-900/30 rounded-lg mono text-[8px] font-black uppercase tracking-widest transition-all"
+                  >
+                    {saveStatus === 'idle' ? 'SET GLOBAL KEY' : saveStatus === 'saving' ? 'UPLOADING...' : 'SIGNAL SYNCED'}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2 pt-4 border-t border-white/[0.03]">
               <h3 className="mono text-[8px] text-gray-500 font-black uppercase tracking-[0.3em]">Network Stats</h3>
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Active', value: stats.active, color: 'text-red-500' },
-                  { label: 'Total', value: stats.total, color: 'text-white' }
-                ].map((s, i) => (
+                {[{ label: 'Active', value: stats.active, color: 'text-red-500' }, { label: 'Total', value: stats.total, color: 'text-white' }].map((s, i) => (
                   <div key={i} className="bg-white/[0.02] border border-white/[0.05] p-2.5 rounded-xl">
                     <p className={`text-base font-black mono tracking-tighter ${s.color}`}>{s.value.toString().padStart(2, '0')}</p>
                     <p className="text-[6px] mono text-gray-600 uppercase font-bold tracking-widest mt-0.5">{s.label}</p>
@@ -120,27 +133,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 ))}
               </div>
             </section>
-
-            <section className="space-y-2 pt-4 border-t border-white/[0.03] shrink-0">
-              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Global Operational Key</h3>
-              <div className="space-y-2">
-                <input 
-                  type="password" 
-                  placeholder="PASTE GEMINI API KEY" 
-                  value={globalKey}
-                  onChange={(e) => setGlobalKey(e.target.value)}
-                  className="w-full bg-[#0c0c0e] border border-white/[0.05] p-2 rounded-lg mono text-[8px] text-white outline-none focus:border-red-600/40"
-                />
-                <button 
-                  onClick={handleSaveGlobalKey}
-                  className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 border border-red-900/30 rounded-lg mono text-[7px] font-black uppercase tracking-widest transition-all"
-                >
-                  {copyFeedback === 'GLOBAL_KEY_SAVED' ? 'KEY UPDATED ✓' : 'SAVE OPERATIONAL KEY'}
-                </button>
-                <p className="text-[5px] mono text-gray-600 uppercase leading-relaxed text-center">Required for Neural Reconstruction Engine</p>
-              </div>
-            </section>
-
+            
             <section className="space-y-2 pt-4 border-t border-white/[0.03] shrink-0">
               <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Key Forger</h3>
               <div className="space-y-2">
@@ -150,24 +143,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 <button onClick={handleGenerate} disabled={isSyncing} className="w-full py-3.5 bg-white text-black hover:bg-red-600 hover:text-white rounded-lg mono text-[8px] font-black uppercase tracking-[0.2em] disabled:opacity-50 mt-1">INITIALIZE KEY</button>
               </div>
             </section>
-
+            
             <section className="opacity-40 space-y-1.5 pt-4 mt-auto">
               <div className="flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-green-500"></div>
-                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">CORE: GEMINI_FLASH_2.5</p>
+                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">NODE: GOOGLE_GENAI_CORE</p>
               </div>
-              <p className="mono text-[5px] leading-relaxed uppercase tracking-widest text-gray-600">
-                AES-256 BITSTREAM<br/>
-                RASTER_ENGINE_V25
-              </p>
+              <p className="mono text-[5px] leading-relaxed uppercase tracking-widest text-gray-600">GEMINI_2.5_FLASH_IMAGE<br/>AES-256 BITSTREAM</p>
+              <div className="mt-2 text-[5px] mono text-red-600 font-bold uppercase tracking-widest">NATIVE PROTOCOL ACTIVE</div>
             </section>
           </aside>
-
           <main className="flex-1 bg-black/20 flex flex-col p-6 space-y-5 overflow-hidden">
             <div className="relative w-full max-w-xl">
               <input type="text" placeholder="LOCATE SIGNAL SIGNATURE..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#0c0c0e] border border-white/[0.05] p-3 pl-10 rounded-xl mono text-[9px] text-white outline-none focus:border-red-600/40" />
             </div>
-
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                 {filteredKeys.map((k) => {

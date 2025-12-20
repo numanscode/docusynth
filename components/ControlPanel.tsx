@@ -87,8 +87,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
            <svg className={`w-4 h-4 text-red-600 ${isLoading ? 'animate-spin' : cooldown > 0 ? 'opacity-20' : 'animate-pulse'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
            <div className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
              ENGINE: <span className="text-white">Gemini 2.5 Flash Image</span><br/>
+             NODE: <span className="text-white">Native Google Cloud</span><br/>
              STATUS: <span className={cooldown > 0 ? 'text-yellow-600' : 'text-green-500'}>
-               {isLoading ? 'Processing Neural Streams' : cooldown > 0 ? `Recalibration: ${cooldown}s` : 'System Operational'}
+               {isLoading ? 'Decrypting Neural Stream' : cooldown > 0 ? `Recalibration: ${cooldown}s` : 'System Operational'}
              </span>
            </div>
         </div>
