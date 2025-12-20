@@ -2,15 +2,15 @@
 import { AccessKey, HistoryEntry } from '../types';
 import { supabase } from './supabase';
 
-// Helper to ensure dates are always numbers (ms) regardless of Supabase format
+// Helper to ensure dates are always valid numbers (ms) regardless of Supabase format (ISO vs Unix)
 const parseTimestamp = (val: any): number => {
-  if (!val) return 0;
+  if (!val) return Date.now();
   if (typeof val === 'number') return val;
   const d = new Date(val).getTime();
-  return isNaN(d) ? 0 : d;
+  return isNaN(d) ? Date.now() : d;
 };
 
-// Fallback persistence for when Supabase is unreachable
+// Fallback persistence for when Supabase is unreachable or tables are missing
 const localVault = {
   keys: 'ds_local_keys',
   history: 'ds_local_history',
@@ -64,7 +64,7 @@ export const db = {
         revoked: !!k.revoked
       }));
     } catch (e) {
-      console.warn("Auth Service: Supabase unreachable, using Local Vault.");
+      console.warn("Auth Service: Table access failure, falling back to Local Vault.");
       return getLocal<AccessKey[]>(localVault.keys, []);
     }
   },
@@ -132,7 +132,7 @@ export const validateKey = async (keyString: string): Promise<AccessKey | null> 
 
   try {
     const { data: keys, error } = await supabase.from('ds_access_keys').select('*').eq('key', keyString).eq('revoked', false);
-    if (error || !keys || keys.length === 0) throw new Error("Key not in Cloud");
+    if (error || !keys || keys.length === 0) throw new Error("Cloud validation error");
     
     const k = keys[0];
     const key: AccessKey = {

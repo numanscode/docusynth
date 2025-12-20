@@ -9,20 +9,17 @@ import { db } from "./auth";
  */
 
 const getClient = async () => {
-  // Prioritize the key stored in Supabase/Settings
+  // Use strictly environment variable or settings key - no fallback to preview models
   const operationalKey = await db.getSettings('gemini_api_key');
   const apiKey = operationalKey || process.env.API_KEY;
   
   if (!apiKey) {
-    throw new Error("API_KEY_MISSING: No valid Operational License Key found in the system. Check Admin Configuration.");
+    throw new Error("API_KEY_MISSING: Operational License Key not found.");
   }
   
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * Utility to extract clean base64 data from a Data URL.
- */
 const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
   const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!matches || matches.length !== 3) {
@@ -38,7 +35,7 @@ export const processDocument = async (
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
   if (!baseImageBase64) {
-    return { thinking: "SOURCE_EMPTY: No document image provided for synthesis." };
+    return { thinking: "SOURCE_EMPTY: No document provided." };
   }
 
   const { data, mimeType } = cleanBase64(baseImageBase64);
@@ -63,7 +60,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
   try {
     const ai = await getClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-2.5-flash-image', // Explicit non-preview stable image model
       contents: {
         parts: [
           {
@@ -85,7 +82,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
     });
 
     if (!response.candidates || response.candidates.length === 0) {
-      return { thinking: "SYNTH_FAILURE: The model failed to generate any candidates." };
+      return { thinking: "SYNTH_FAILURE: No neural candidates produced." };
     }
 
     const candidate = response.candidates[0];
@@ -102,16 +99,16 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
       return { imageUrl: generatedImageUrl };
     }
 
-    const textTrace = response.text || "No output generated.";
+    const textTrace = response.text || "Neural stream yielded no visual data.";
     return { 
-      thinking: `SYNTH_REJECTED: The engine returned text instead of a synthesized image. Trace: ${textTrace}` 
+      thinking: `SYNTH_REJECTED: Output contained text instead of synthesis. Trace: ${textTrace}` 
     };
     
   } catch (err: any) {
     console.error("Gemini Synthesis Failure:", err);
     const isQuota = err.message?.includes('429') || err.message?.includes('quota');
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "An unexpected error occurred during neural synthesis."}`,
+      thinking: `CORE_LINK_ERROR: ${err.message || "An unexpected error occurred during synthesis."}`,
       quotaError: isQuota
     };
   }
