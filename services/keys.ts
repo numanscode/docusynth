@@ -5,9 +5,6 @@
  * The system will automatically rotate between them to prevent rate limiting.
  */
 export const API_KEYS: string[] = [
-  "AIzaSyCWv03A-i43_NKAPEvAxsb-ZrCXahhMTjY",
-  "AIzaSyD8icP4zfB7YWsolZyVPxk_u3SVO8s1H04",
-  "AIzaSyDN30GHZQIqNDlYadFj2dD3Bjgy7Js93Qg",
   "AIzaSyADmjcD0TYXBApo0RZBcd6QQdh4LuiXdBQ",
   "AIzaSyD9HxJCAC3x50RxiTzJoRYQsFINyoALuzM",
   "AIzaSyCTsmWXxd_AninJ-Yz_D0k2zUgFfl_xj_U"
