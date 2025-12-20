@@ -91,8 +91,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="flex items-center gap-3 p-4 border border-red-900/10 rounded-xl bg-red-900/5">
            <svg className="w-4 h-4 text-red-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
            <p className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
-             MODEL: <span className="text-white">Gemini 3 Pro</span><br/>
-             STATUS: <span className="text-green-500">System Ready</span>
+             ENGINE: <span className="text-white">Kie.ai Nano Banana V5</span><br/>
+             STATUS: <span className="text-green-500">Record Interface Active</span>
            </p>
         </div>
       </section>

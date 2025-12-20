@@ -7,7 +7,6 @@
     <title>DocuSynth Pro | Synthesis Engine</title>
     <meta name="description" content="Forensic-grade document synthesis and pixel reconstruction engine.">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://js.puter.com/v2/"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -19,11 +18,13 @@
         .input-dark:focus { border-color: #ef4444; outline: none; box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
         .shimmer-bg { background: linear-gradient(90deg, #b91c1c, #ef4444, #b91c1c); background-size: 200% 100%; animation: shimmer 2s infinite linear; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .scanline { width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            background-size: 100% 4px, 3px 100%; }
         .fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Custom scrollbar for professional feel */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(239, 68, 68, 0.4); }
     </style>
     <script type="importmap">
 {

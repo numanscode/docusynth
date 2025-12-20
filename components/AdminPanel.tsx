@@ -125,11 +125,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
             <section className="opacity-40 space-y-1.5 pt-4 mt-auto">
               <div className="flex items-center gap-1.5">
                 <div className="w-1 h-1 rounded-full bg-green-500"></div>
-                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">CORE: NANO_BANANA_2.5</p>
+                <p className="mono text-[6px] uppercase tracking-widest text-gray-400 font-bold">CORE: KIE_BANANA_5.0</p>
               </div>
               <p className="mono text-[5px] leading-relaxed uppercase tracking-widest text-gray-600">
                 AES-256 BITSTREAM<br/>
-                RASTER_ENGINE_V18
+                RASTER_ENGINE_V22
               </p>
             </section>
           </aside>
