@@ -4,23 +4,24 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 
 /**
  * DOCUSYNTH CORE: GEMINI_FLASH_IMAGE_SYNTHESIS_V1
- * Direct integration with Google Gemini 2.5 Flash Image for surgical document editing.
+ * Direct integration with Google Gemini 2.5 Flash Image.
+ * Using specific operational key for live deployment.
  */
 export const processDocument = async (
   baseImageBase64: string | null,
   request: ModificationRequest,
   options: ProcessingOptions
 ): Promise<{ imageUrl?: string; thinking?: string }> => {
-  // Initialize the AI client using the mandatory environment key
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Use the provided operational key for live environments
+  const operationalKey = process.env.API_KEY || "AIzaSyBx99gmPaN7SBFPjWyWqpYQ1z0o4Ffdzmw";
   
-  // Format text replacement directives
+  const ai = new GoogleGenAI({ apiKey: operationalKey });
+  
   const mappingDirectives = request.textReplacements
     .filter(r => r.key && r.value)
     .map(r => `SUBSTITUTE: Locate text "${r.key}" and replace with identical font "${r.value}".`)
     .join('\n');
 
-  // Construct the forensic mandate combined with user creative instructions
   const finalPrompt = `
 [SYSTEM MANDATE: SURGICAL RASTER SYNTHESIS]
 
@@ -46,7 +47,6 @@ OUTPUT: Generate and return only the synthesized image.
   try {
     const parts: any[] = [{ text: finalPrompt }];
     
-    // Prepare image part for Image-to-Image editing
     if (baseImageBase64) {
       const split = baseImageBase64.split(',');
       const mimeType = split[0].match(/:(.*?);/)?.[1] || 'image/png';
@@ -65,7 +65,6 @@ OUTPUT: Generate and return only the synthesized image.
       contents: [{ role: 'user', parts }]
     });
 
-    // Iterate through response parts to find the generated image
     const candidate = response.candidates?.[0];
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
@@ -77,15 +76,14 @@ OUTPUT: Generate and return only the synthesized image.
       }
     }
 
-    // Fallback if no image part is returned
     return { 
-      thinking: "SYNTH_REJECTED: The model failed to generate a bitmap response. Raw text output: " + (response.text || "No response.")
+      thinking: "SYNTH_REJECTED: The model failed to generate a bitmap response."
     };
     
   } catch (err: any) {
     console.error("Gemini Engine Exception:", err);
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "Failed to establish link with synthesis node."}`
+      thinking: `CORE_LINK_ERROR: ${err.message || "Link failure."}`
     };
   }
 };
