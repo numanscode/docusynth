@@ -139,7 +139,6 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   };
 
   const handleSynthesize = async () => {
-    // Hardware Lock Check
     if (cooldown > 0) return;
     
     if (!baseImage && !canvasImage) {
@@ -165,12 +164,15 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         };
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
-        
-        // Initiate Operational Cooldown (45s)
         setCooldown(45);
       } else {
         const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
+        
+        // If it's a quota issue, prompt the user to select a paid key
+        if (result.quotaError && window.aistudio?.openSelectKey) {
+          window.aistudio.openSelectKey();
+        }
       }
     } catch (err: any) {
       setErrorLog({ message: err.message || "An unexpected error occurred during processing.", type: 'error' });

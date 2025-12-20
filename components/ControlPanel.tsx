@@ -36,6 +36,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     setTextReplacements(nextReplacements);
   };
 
+  const handleKeySelect = async () => {
+    if (window.aistudio?.openSelectKey) {
+      await window.aistudio.openSelectKey();
+    }
+  };
+
   const isButtonDisabled = isLoading || cooldown > 0;
 
   return (
@@ -45,15 +51,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <div className="w-1.5 h-1.5 rounded-full bg-red-600 shadow-[0_0_10px_#dc2626]"></div>
           <h2 className="mono text-[10px] font-bold uppercase tracking-[0.3em] text-red-600">Settings</h2>
         </div>
-        <div className="flex items-center gap-2 px-2 py-1 bg-red-900/5 rounded border border-red-900/20">
-          <span className="text-[7px] mono text-red-700 font-bold uppercase">Enhanced Mode</span>
-          <button 
-            onClick={() => setThinkingMode(!thinkingMode)}
-            className={`w-6 h-3 rounded-full relative transition-all ${thinkingMode ? 'bg-red-600' : 'bg-gray-800'}`}
-          >
-            <div className={`absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all ${thinkingMode ? 'right-0.5' : 'left-0.5'}`}></div>
-          </button>
-        </div>
+        <button 
+          onClick={handleKeySelect}
+          className="text-[7px] mono text-gray-500 hover:text-white uppercase font-bold border border-white/5 px-2 py-1 rounded hover:bg-white/5 transition-all"
+        >
+          Manage API Link
+        </button>
       </div>
 
       <section className="space-y-4">
@@ -97,7 +100,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
            <p className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
              ENGINE: <span className="text-white">Gemini 2.5 Flash Image</span><br/>
              STATUS: <span className={cooldown > 0 ? 'text-yellow-600' : 'text-green-500'}>
-               {isLoading ? 'Processing Neural Streams' : cooldown > 0 ? `Thermal Recalibration: ${cooldown}s` : 'Native Neural Access'}
+               {isLoading ? 'Processing Neural Streams' : cooldown > 0 ? `Recalibration: ${cooldown}s` : 'System Operational'}
              </span>
            </p>
         </div>

@@ -4,18 +4,23 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 
 /**
  * DOCUSYNTH CORE: GEMINI_FLASH_IMAGE_SYNTHESIS_V1
- * Direct integration with Google Gemini 2.5 Flash Image.
- * Using specific operational key for live deployment.
+ * Using gemini-2.5-flash-image for forensic-grade document synthesis.
  */
 export const processDocument = async (
   baseImageBase64: string | null,
   request: ModificationRequest,
   options: ProcessingOptions
-): Promise<{ imageUrl?: string; thinking?: string }> => {
-  // Use the provided operational key for live environments
-  const operationalKey = process.env.API_KEY || "AIzaSyBx99gmPaN7SBFPjWyWqpYQ1z0o4Ffdzmw";
+): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
-  const ai = new GoogleGenAI({ apiKey: operationalKey });
+  // Requirement: API Key must be obtained exclusively from process.env.API_KEY
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
+    return { thinking: "CORE_ERROR: Operational API Key not detected in environment." };
+  }
+
+  // Create fresh instance per request to ensure up-to-date state
+  const ai = new GoogleGenAI({ apiKey });
   
   const mappingDirectives = request.textReplacements
     .filter(r => r.key && r.value)
@@ -29,7 +34,8 @@ OBJECTIVE: Perform forensic-grade bitmap reconstruction while maintaining 100% p
 
 PHASE 1: ABSOLUTE BASE PRESERVATION
 - RETAIN: 1:1 pixel parity, source aspect ratio, and native sensor noise profile.
-- GEOMETRIC FIDELITY: Maintain document curvature and perspective distortions.
+- GEOMETRIC FIDELITY: Maintain document curvature, perspective distortions, and substrate warping.
+- SECURITY ARCHITECTURE: Preserve all holographic guilloche patterns, spectral micro-printing, and UV-reactive ink signatures.
 
 PHASE 2: NEURAL INK INTEGRATION
 ${mappingDirectives}
@@ -41,7 +47,7 @@ PHASE 4: FORENSIC STEALTH EXECUTION
 - RENDER: Output a unified raster image with realistic camera grain.
 - FINAL STATE: Output must appear as a singular, authentic capture.
 
-OUTPUT: Generate and return only the synthesized image.
+OUTPUT: Generate and return only the synthesized image. Do not include text explanation.
   `.trim();
 
   try {
@@ -60,6 +66,7 @@ OUTPUT: Generate and return only the synthesized image.
       });
     }
 
+    // Explicitly using 'gemini-2.5-flash-image' as requested
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: [{ role: 'user', parts }]
@@ -77,13 +84,26 @@ OUTPUT: Generate and return only the synthesized image.
     }
 
     return { 
-      thinking: "SYNTH_REJECTED: The model failed to generate a bitmap response."
+      thinking: "SYNTH_REJECTED: The neural engine produced no bitmap response. This often happens if the instructions are too complex or violate safety filters."
     };
     
   } catch (err: any) {
     console.error("Gemini Engine Exception:", err);
+    
+    // Check for quota/billing errors
+    const isQuotaError = err.message?.includes('429') || 
+                        err.message?.includes('quota') || 
+                        err.message?.includes('limit: 0');
+
+    if (isQuotaError) {
+      return { 
+        thinking: "RESOURCE_EXHAUSTED: Free tier limit reached or model disabled for this project. Use 'Manage API Link' to connect a paid GCP project.",
+        quotaError: true
+      };
+    }
+
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "Link failure."}`
+      thinking: `CORE_LINK_ERROR: ${err.message || "An unexpected error occurred during neural synthesis."}`
     };
   }
 };
