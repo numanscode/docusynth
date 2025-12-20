@@ -57,29 +57,32 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   // GLOBAL Admin Access Trigger - High Precision Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Append key to buffer
-      sequenceBuffer.current += e.key.toLowerCase();
-      
-      if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
-      
-      // Check if buffer contains secret
-      if (sequenceBuffer.current.endsWith(ADMIN_SECRET)) {
-        setIsAdminOpen(true);
-        sequenceBuffer.current = '';
-        console.debug("ADMIN_PANEL_BYPASS_ENGAGED");
-      }
+      // Only capture single character keys to ignore Shift, Alt, etc.
+      if (e.key.length === 1) {
+        sequenceBuffer.current += e.key.toLowerCase();
+        
+        if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
+        
+        // Check if buffer contains secret
+        if (sequenceBuffer.current.endsWith(ADMIN_SECRET)) {
+          setIsAdminOpen(true);
+          sequenceBuffer.current = '';
+          console.debug("ADMIN_PANEL_BYPASS_ENGAGED");
+        }
 
-      // Reset buffer after 2 seconds of inactivity
-      sequenceTimer.current = window.setTimeout(() => {
-        sequenceBuffer.current = '';
-      }, 2000);
+        // Reset buffer after 2 seconds of inactivity
+        sequenceTimer.current = window.setTimeout(() => {
+          sequenceBuffer.current = '';
+        }, 2000);
 
-      // Prevent buffer overflow
-      if (sequenceBuffer.current.length > 50) {
-        sequenceBuffer.current = sequenceBuffer.current.slice(-20);
+        // Prevent buffer overflow
+        if (sequenceBuffer.current.length > 50) {
+          sequenceBuffer.current = sequenceBuffer.current.slice(-20);
+        }
       }
     };
 
+    // Use capture: true to ensure we catch events before inputs stop them
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
@@ -226,14 +229,14 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
         <ControlPanel onSynthesize={handleSynthesize} isLoading={isLoading} textReplacements={request.textReplacements} setTextReplacements={(r) => setRequest({...request, textReplacements: r})} />
         
-        {isHistoryOpen && <HistoryPanel history={generationHistory} onClose={() => setIsHistoryOpen(false)} onRestore={(e) => { setCanvasImage(e.imageUrl); setRequest({...request, textReplacements: e.textReplacements, instructions: e.prompt}); setIsHistoryOpen(false); }} />}
+        {isHistoryOpen && <HistoryPanel history={generationHistory} onClose={() => setIsHistoryOpen(false)} onRestore={(entry) => { setCanvasImage(entry.imageUrl); setRequest({...request, textReplacements: entry.textReplacements, instructions: entry.prompt}); setIsHistoryOpen(false); }} />}
       </div>
     );
   };
 
   return (
     <>
-      {/* Global Error Popups */}
+      {/* Global Error Popups - Top Level */}
       {errorLog && (
         <div className="fixed top-6 right-6 z-[2000] flex items-center gap-4 bg-[#0a0a0c] border border-red-600/50 p-5 rounded-2xl shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-slide-in-right glass-panel max-w-md">
           <div className="flex-shrink-0 relative">
@@ -251,10 +254,10 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         </div>
       )}
 
-      {/* Primary Context */}
+      {/* Primary Content Layer */}
       {renderMainContent()}
 
-      {/* Universal Admin Access Layer */}
+      {/* Universal Admin Access Layer - Highest UI Priority */}
       {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
     </>
   );
