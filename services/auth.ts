@@ -2,7 +2,11 @@
 import { AccessKey, HistoryEntry } from '../types';
 import { supabase } from './supabase';
 
-// Helper to ensure dates are always valid numbers (ms) regardless of Supabase format (ISO vs Unix)
+/**
+ * AUTH SERVICE: RESILIENT PERSISTENCE LAYER
+ * Optimized for hybrid Supabase/Local storage.
+ */
+
 const parseTimestamp = (val: any): number => {
   if (!val) return Date.now();
   if (typeof val === 'number') return val;
@@ -10,7 +14,6 @@ const parseTimestamp = (val: any): number => {
   return isNaN(d) ? Date.now() : d;
 };
 
-// Fallback persistence for when Supabase is unreachable or tables are missing
 const localVault = {
   keys: 'ds_local_keys',
   history: 'ds_local_history',
@@ -31,7 +34,7 @@ const setLocal = (key: string, val: any) => {
 export const db = {
   async getSettings(id: string): Promise<string> {
     try {
-      const { data, error } = await supabase.from('ds_settings').select('value').eq('id', id).single();
+      const { data, error } = await supabase.from('ds_settings').select('value').eq('id', id).maybeSingle();
       if (error) throw error;
       return data?.value || '';
     } catch {
@@ -53,18 +56,22 @@ export const db = {
     try {
       const { data, error } = await supabase.from('ds_access_keys').select('*');
       if (error) throw error;
-      return (data || []).map(k => ({
+      
+      const mapped = (data || []).map(k => ({
         id: k.id,
         key: k.key,
-        duration: k.duration,
-        durationMs: k.duration_ms,
+        duration: k.duration || '7day',
+        durationMs: k.duration_ms || 604800000,
         createdAt: parseTimestamp(k.created_at),
         activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined,
         expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined,
         revoked: !!k.revoked
       }));
+      
+      setLocal(localVault.keys, mapped);
+      return mapped;
     } catch (e) {
-      console.warn("Auth Service: Table access failure, falling back to Local Vault.");
+      console.warn("Supabase Unreachable: Falling back to Local Vault.");
       return getLocal<AccessKey[]>(localVault.keys, []);
     }
   },
@@ -73,17 +80,17 @@ export const db = {
     setLocal(localVault.keys, keys);
     try {
       const dbKeys = keys.map(k => ({
-        id: k.id, 
-        key: k.key, 
-        duration: k.duration, 
+        id: k.id,
+        key: k.key,
+        duration: k.duration,
         duration_ms: k.durationMs,
-        created_at: new Date(k.createdAt).toISOString(), 
-        activated_at: k.activatedAt ? new Date(k.activatedAt).toISOString() : null, 
-        expires_at: k.expiresAt ? new Date(k.expiresAt).toISOString() : null, 
+        created_at: new Date(k.createdAt).toISOString(),
+        activated_at: k.activatedAt ? new Date(k.activatedAt).toISOString() : null,
+        expires_at: k.expiresAt ? new Date(k.expiresAt).toISOString() : null,
         revoked: k.revoked
       }));
       await supabase.from('ds_access_keys').upsert(dbKeys);
-    } catch (e) { console.error("Sync Failure:", e); }
+    } catch (e) { console.error("Key Sync Failure:", e); }
   },
 
   async getHistory(keyId?: string): Promise<HistoryEntry[]> {
@@ -92,12 +99,13 @@ export const db = {
       if (keyId) query = query.eq('key_id', keyId);
       const { data, error } = await query;
       if (error) throw error;
+      
       return (data || []).map(h => ({
-        id: h.id, 
-        keyId: h.key_id, 
-        imageUrl: h.image_url, 
+        id: h.id,
+        keyId: h.key_id,
+        imageUrl: h.image_url,
         timestamp: parseTimestamp(h.timestamp),
-        prompt: h.prompt, 
+        prompt: h.prompt,
         textReplacements: h.text_replacements || []
       }));
     } catch {
@@ -111,11 +119,11 @@ export const db = {
     setLocal(localVault.history, [...local, entry]);
     try {
       await supabase.from('ds_history').insert([{
-        id: entry.id, 
-        key_id: entry.keyId, 
+        id: entry.id,
+        key_id: entry.keyId,
         image_url: entry.imageUrl,
-        timestamp: new Date(entry.timestamp).toISOString(), 
-        prompt: entry.prompt, 
+        timestamp: new Date(entry.timestamp).toISOString(),
+        prompt: entry.prompt,
         text_replacements: entry.textReplacements
       }]);
     } catch {}
@@ -131,27 +139,27 @@ export const validateKey = async (keyString: string): Promise<AccessKey | null> 
   }
 
   try {
-    const { data: keys, error } = await supabase.from('ds_access_keys').select('*').eq('key', keyString).eq('revoked', false);
-    if (error || !keys || keys.length === 0) throw new Error("Cloud validation error");
+    const { data: keys, error } = await supabase.from('ds_access_keys').select('*').eq('key', keyString).eq('revoked', false).limit(1);
+    if (error || !keys || keys.length === 0) throw new Error("Key not found in Cloud");
     
     const k = keys[0];
     const key: AccessKey = {
-      id: k.id, 
-      key: k.key, 
-      duration: k.duration, 
+      id: k.id,
+      key: k.key,
+      duration: k.duration,
       durationMs: k.duration_ms,
-      createdAt: parseTimestamp(k.created_at), 
-      activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined, 
-      expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined, 
+      createdAt: parseTimestamp(k.created_at),
+      activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined,
+      expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined,
       revoked: !!k.revoked
     };
 
     if (!key.activatedAt) {
       key.activatedAt = Date.now();
       key.expiresAt = Date.now() + key.durationMs;
-      await supabase.from('ds_access_keys').update({ 
-        activated_at: new Date(key.activatedAt).toISOString(), 
-        expires_at: new Date(key.expiresAt).toISOString() 
+      await supabase.from('ds_access_keys').update({
+        activated_at: new Date(key.activatedAt).toISOString(),
+        expires_at: new Date(key.expiresAt).toISOString()
       }).eq('id', key.id);
     }
     return (key.expiresAt && Date.now() > key.expiresAt) ? null : key;
@@ -177,11 +185,11 @@ export const generateKey = async (duration: AccessKey['duration']): Promise<Acce
 
   try {
     await supabase.from('ds_access_keys').insert([{
-      id: newKey.id, 
-      key: newKey.key, 
+      id: newKey.id,
+      key: newKey.key,
       duration: newKey.duration,
-      duration_ms: newKey.durationMs, 
-      created_at: new Date(newKey.createdAt).toISOString(), 
+      duration_ms: newKey.durationMs,
+      created_at: new Date(newKey.createdAt).toISOString(),
       revoked: false
     }]);
   } catch {}

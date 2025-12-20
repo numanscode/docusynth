@@ -4,17 +4,17 @@ import { ProcessingOptions, ModificationRequest } from "../types";
 import { db } from "./auth";
 
 /**
- * DOCUSYNTH CORE: NATIVE_GEMINI_SYNTHESIS
- * Direct integration with Gemini 2.5 Flash Image via the official SDK.
+ * DOCUSYNTH CORE: STABLE_GEMINI_SYNTHESIS
+ * Enforced use of gemini-2.5-flash-image production endpoint.
  */
 
 const getClient = async () => {
-  // Use strictly environment variable or settings key - no fallback to preview models
+  // Use strictly production key from settings
   const operationalKey = await db.getSettings('gemini_api_key');
   const apiKey = operationalKey || process.env.API_KEY;
   
   if (!apiKey) {
-    throw new Error("API_KEY_MISSING: Operational License Key not found.");
+    throw new Error("API_KEY_MISSING: No valid Operational License Key found.");
   }
   
   return new GoogleGenAI({ apiKey });
@@ -28,6 +28,31 @@ const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
   return { mimeType: matches[1], data: matches[2] };
 };
 
+export const testAiConnection = async (): Promise<{ success: boolean; message: string }> => {
+  try {
+    const ai = await getClient();
+    // 1x1 Transparent PNG Pixel
+    const tinyImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          { inlineData: { data: tinyImage, mimeType: 'image/png' } },
+          { text: "Respond with the word 'READY' if you can see this image." }
+        ]
+      }
+    });
+
+    if (response.candidates?.[0]) {
+      return { success: true, message: "Engine connection verified. Neural link active." };
+    }
+    return { success: false, message: "Engine responded but returned no candidates." };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Connection refused by neural endpoint." };
+  }
+};
+
 export const processDocument = async (
   baseImageBase64: string | null,
   request: ModificationRequest,
@@ -35,7 +60,7 @@ export const processDocument = async (
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
   if (!baseImageBase64) {
-    return { thinking: "SOURCE_EMPTY: No document provided." };
+    return { thinking: "SOURCE_EMPTY: Provide document image." };
   }
 
   const { data, mimeType } = cleanBase64(baseImageBase64);
@@ -54,13 +79,13 @@ ${mappingDirectives}
 USER INSTRUCTIONS:
 ${request.instructions}
 
-FINAL DIRECTIVE: Analyze the attached image and generate a new version incorporating the requested text replacements and instructions. Maintain all forensic characteristics. Output only the image.
+FINAL DIRECTIVE: Analyze the attached image and generate a new version incorporating the requested text replacements and instructions. Maintain all forensic characteristics. Output ONLY the image data.
   `.trim();
 
   try {
     const ai = await getClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image', // Explicit non-preview stable image model
+      model: 'gemini-2.5-flash-image', // Strict production-only model
       contents: {
         parts: [
           {
@@ -82,7 +107,7 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
     });
 
     if (!response.candidates || response.candidates.length === 0) {
-      return { thinking: "SYNTH_FAILURE: No neural candidates produced." };
+      return { thinking: "SYNTH_FAILURE: Neural stream empty." };
     }
 
     const candidate = response.candidates[0];
@@ -99,16 +124,17 @@ FINAL DIRECTIVE: Analyze the attached image and generate a new version incorpora
       return { imageUrl: generatedImageUrl };
     }
 
-    const textTrace = response.text || "Neural stream yielded no visual data.";
+    // Access .text property directly as per guidelines
+    const textTrace = response.text || "No metadata returned.";
     return { 
-      thinking: `SYNTH_REJECTED: Output contained text instead of synthesis. Trace: ${textTrace}` 
+      thinking: `SYNTH_REJECTED: Model returned text. Trace: ${textTrace}` 
     };
     
   } catch (err: any) {
     console.error("Gemini Synthesis Failure:", err);
     const isQuota = err.message?.includes('429') || err.message?.includes('quota');
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "An unexpected error occurred during synthesis."}`,
+      thinking: `CORE_LINK_ERROR: ${err.message || "Synthesis failure."}`,
       quotaError: isQuota
     };
   }
