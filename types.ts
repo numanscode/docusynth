@@ -40,3 +40,5 @@ export interface AdminStats {
   activeKeys: number;
   expiredKeys: number;
 }
+
+// Removed redundant aistudio declaration that was causing a conflict with the environment's global types.

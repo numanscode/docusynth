@@ -66,15 +66,20 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
       });
     }
 
-    // Explicitly using 'gemini-2.5-flash-image' as requested
+    // Using 'gemini-2.5-flash-image' with proper thinkingConfig as per guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: [{ role: 'user', parts }]
+      contents: { parts },
+      config: {
+        // Thinking budget for 2.5 Flash series is max 24576
+        thinkingConfig: { thinkingBudget: request.thinkingMode ? 24576 : 0 }
+      }
     });
 
     const candidate = response.candidates?.[0];
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
+        // Find the image part, do not assume it is the first part.
         if (part.inlineData) {
           return { 
             imageUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` 
@@ -90,10 +95,11 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
   } catch (err: any) {
     console.error("Gemini Engine Exception:", err);
     
-    // Check for quota/billing errors
+    // Check for quota/billing errors or missing entity errors
     const isQuotaError = err.message?.includes('429') || 
                         err.message?.includes('quota') || 
-                        err.message?.includes('limit: 0');
+                        err.message?.includes('limit: 0') ||
+                        err.message?.includes('Requested entity was not found');
 
     if (isQuotaError) {
       return { 

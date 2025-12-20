@@ -140,6 +140,11 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
   const handleSynthesize = async () => {
     if (cooldown > 0) return;
+
+    // Check for API key selection as per mandatory guidelines for Gemini series
+    if (window.aistudio && !(await (window as any).aistudio.hasSelectedApiKey())) {
+      await (window as any).aistudio.openSelectKey();
+    }
     
     if (!baseImage && !canvasImage) {
       setErrorLog({ message: "Please provide a source document image.", type: 'warning' });
@@ -169,9 +174,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
         
-        // If it's a quota issue, prompt the user to select a paid key
-        if (result.quotaError && window.aistudio?.openSelectKey) {
-          window.aistudio.openSelectKey();
+        // If it's a quota issue or missing entity, prompt the user to select a key again
+        if (result.quotaError && (window as any).aistudio?.openSelectKey) {
+          await (window as any).aistudio.openSelectKey();
         }
       }
     } catch (err: any) {
