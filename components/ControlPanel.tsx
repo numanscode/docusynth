@@ -5,6 +5,7 @@ import { TextReplacement } from '../types';
 interface ControlPanelProps {
   onSynthesize: () => void;
   isLoading: boolean;
+  cooldown: number;
   textReplacements: TextReplacement[];
   setTextReplacements: (replacements: TextReplacement[]) => void;
   thinkingMode: boolean;
@@ -14,6 +15,7 @@ interface ControlPanelProps {
 const ControlPanel: React.FC<ControlPanelProps> = ({ 
   onSynthesize, 
   isLoading,
+  cooldown,
   textReplacements,
   setTextReplacements,
   thinkingMode,
@@ -33,6 +35,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     );
     setTextReplacements(nextReplacements);
   };
+
+  const isButtonDisabled = isLoading || cooldown > 0;
 
   return (
     <div className="w-[340px] min-w-[340px] flex-shrink-0 h-full bg-[#0a0a0c] border-l border-red-900/10 p-6 overflow-y-auto flex flex-col gap-8 glass-panel custom-scrollbar">
@@ -89,10 +93,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       <section className="space-y-3">
         <div className="flex items-center gap-3 p-4 border border-red-900/10 rounded-xl bg-red-900/5">
-           <svg className="w-4 h-4 text-red-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+           <svg className={`w-4 h-4 text-red-600 ${isLoading ? 'animate-spin' : cooldown > 0 ? 'opacity-20' : 'animate-pulse'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
            <p className="text-[9px] mono text-gray-500 uppercase leading-relaxed font-bold">
              ENGINE: <span className="text-white">Gemini 2.5 Flash Image</span><br/>
-             STATUS: <span className="text-green-500">Native Neural Access</span>
+             STATUS: <span className={cooldown > 0 ? 'text-yellow-600' : 'text-green-500'}>
+               {isLoading ? 'Processing Neural Streams' : cooldown > 0 ? `Thermal Recalibration: ${cooldown}s` : 'Native Neural Access'}
+             </span>
            </p>
         </div>
       </section>
@@ -100,11 +106,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       <div className="mt-auto pt-6">
         <button
           onClick={onSynthesize}
-          disabled={isLoading}
-          className={`w-full py-5 bg-red-700 hover:bg-red-600 disabled:bg-red-950/20 disabled:text-gray-700 transition-all rounded-xl mono text-xs uppercase tracking-[0.4em] font-black text-white relative overflow-hidden group ${isLoading ? 'cursor-not-allowed' : 'hover:scale-[1.01] active:scale-[0.99]'}`}
+          disabled={isButtonDisabled}
+          className={`w-full py-5 transition-all rounded-xl mono text-xs uppercase tracking-[0.4em] font-black text-white relative overflow-hidden group ${
+            isButtonDisabled 
+              ? 'bg-red-950/20 text-gray-700 cursor-not-allowed' 
+              : 'bg-red-700 hover:bg-red-600 hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-red-950/20'
+          }`}
         >
           {isLoading && <div className="absolute inset-0 shimmer-bg opacity-40"></div>}
-          <span className="relative z-10">{isLoading ? 'PROCESSING...' : 'PROCESS DOCUMENT'}</span>
+          {cooldown > 0 && <div className="absolute inset-0 bg-red-600/5 animate-pulse"></div>}
+          <span className="relative z-10">
+            {isLoading ? 'PROCESSING...' : cooldown > 0 ? `COOLDOWN [${cooldown}s]` : 'PROCESS DOCUMENT'}
+          </span>
         </button>
       </div>
     </div>

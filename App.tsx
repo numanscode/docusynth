@@ -20,6 +20,7 @@ const App: React.FC = () => {
   
   const [baseImage, setBaseImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [zoom, setZoom] = useState(100);
   
   const [generationHistory, setGenerationHistory] = useState<HistoryEntry[]>([]);
@@ -48,7 +49,26 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
   const sequenceBuffer = useRef<string>('');
   const sequenceTimer = useRef<number | null>(null);
+  const cooldownInterval = useRef<number | null>(null);
   const ADMIN_SECRET = 'adminds1';
+
+  // Cooldown Manager - Operational Hardware Lock
+  useEffect(() => {
+    if (cooldown > 0) {
+      cooldownInterval.current = window.setInterval(() => {
+        setCooldown(prev => {
+          if (prev <= 1) {
+            if (cooldownInterval.current) clearInterval(cooldownInterval.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (cooldownInterval.current) clearInterval(cooldownInterval.current);
+    };
+  }, [cooldown]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -119,6 +139,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
   };
 
   const handleSynthesize = async () => {
+    // Hardware Lock Check
+    if (cooldown > 0) return;
+    
     if (!baseImage && !canvasImage) {
       setErrorLog({ message: "Please provide a source document image.", type: 'warning' });
       return;
@@ -142,6 +165,9 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         };
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
+        
+        // Initiate Operational Cooldown (45s)
+        setCooldown(45);
       } else {
         const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
@@ -206,6 +232,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         <ControlPanel 
           onSynthesize={handleSynthesize} 
           isLoading={isLoading} 
+          cooldown={cooldown}
           textReplacements={request.textReplacements} 
           setTextReplacements={(r) => setRequest({...request, textReplacements: r})}
           thinkingMode={request.thinkingMode}
