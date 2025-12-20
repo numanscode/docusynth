@@ -120,7 +120,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
 
   const handleSynthesize = async () => {
     if (!baseImage && !canvasImage) {
-      setErrorLog({ message: "No source bitmap provided.", type: 'warning' });
+      setErrorLog({ message: "Please provide a source document image.", type: 'warning' });
       return;
     }
     if (!activeKey) return;
@@ -129,7 +129,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
     setErrorLog(null);
     try {
       const verify = await validateKey(activeKey.key);
-      if (!verify) throw new Error("License validation failure.");
+      if (!verify) throw new Error("Verification failed.");
 
       const result = await processDocument(canvasImage || baseImage, request, options);
       
@@ -143,11 +143,11 @@ PHASE 3: FORENSIC STEALTH EXECUTION
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
       } else {
-        const msg = result.thinking || "Neural core rejected the synthesis signal.";
+        const msg = result.thinking || "The engine was unable to complete the request.";
         setErrorLog({ message: msg, type: 'error' });
       }
     } catch (err: any) {
-      setErrorLog({ message: err.message || "Synthesis engine exception.", type: 'error' });
+      setErrorLog({ message: err.message || "An unexpected error occurred during processing.", type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -180,12 +180,12 @@ PHASE 3: FORENSIC STEALTH EXECUTION
                 }
               }} className="hidden" id="doc-upload" />
               <label htmlFor="doc-upload" className="group block border border-red-900/20 p-6 rounded-2xl text-center bg-red-900/5 hover:bg-red-900/10 hover:border-red-600/30 cursor-pointer transition-all duration-300">
-                <div className="mono text-[9px] text-gray-400 uppercase tracking-widest font-bold group-hover:text-red-500 transition-colors">LOAD SOURCE BITMAP</div>
+                <div className="mono text-[9px] text-gray-400 uppercase tracking-widest font-bold group-hover:text-red-500 transition-colors">LOAD DOCUMENT IMAGE</div>
               </label>
             </section>
 
             <section>
-              <label className="text-[9px] mono text-gray-500 uppercase block mb-2 font-bold tracking-widest">Synthesis Directives</label>
+              <label className="text-[9px] mono text-gray-500 uppercase block mb-2 font-bold tracking-widest">Processing Instructions</label>
               <textarea value={request.instructions} onChange={(e) => setRequest({...request, instructions: e.target.value})} className="w-full h-80 input-dark p-4 text-[10px] mono rounded-xl resize-none text-gray-400 focus:text-white leading-relaxed" spellCheck="false" />
             </section>
           </div>
@@ -197,7 +197,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
               <button onClick={() => setIsHistoryOpen(true)} className="px-3 py-1.5 bg-red-900/5 border border-red-900/20 rounded-lg mono text-[9px] text-red-500 font-bold hover:bg-red-900/10 transition-all uppercase tracking-widest">ARCHIVES ({generationHistory.length})</button>
             </div>
             <div className="flex items-center gap-4">
-              <button onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `synth_${Date.now()}.png`; a.click(); } }} disabled={!canvasImage} className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-xl mono text-[10px] text-white font-bold disabled:opacity-20 uppercase tracking-[0.2em] transition-all shadow-lg shadow-red-950/20">Download Asset</button>
+              <button onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `doc_${Date.now()}.png`; a.click(); } }} disabled={!canvasImage} className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-xl mono text-[10px] text-white font-bold disabled:opacity-20 uppercase tracking-[0.2em] transition-all shadow-lg shadow-red-950/20">Download Result</button>
             </div>
           </div>
           <EditorCanvas imageUrl={canvasImage} isLoading={isLoading} zoom={zoom} setZoom={setZoom} />
@@ -226,7 +226,7 @@ PHASE 3: FORENSIC STEALTH EXECUTION
           </div>
           <div className="flex-1 overflow-hidden">
             <h4 className="mono text-[10px] font-black uppercase tracking-[0.3em] text-red-600 mb-1.5 flex items-center gap-2">
-              <span className="opacity-50">#</span> {errorLog.type === 'error' ? 'CORE_EXCEPTION' : 'PROCESS_WARNING'}
+              <span className="opacity-50">#</span> {errorLog.type === 'error' ? 'SYSTEM_ERROR' : 'SYSTEM_NOTIFICATION'}
             </h4>
             <p className="mono text-[11px] text-gray-300 leading-relaxed uppercase break-words">{errorLog.message}</p>
           </div>

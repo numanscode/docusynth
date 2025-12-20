@@ -59,8 +59,6 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
       onMouseUp={() => setIsDragging(false)}
       onMouseLeave={() => setIsDragging(false)}
     >
-      <div className="scanline"></div>
-      
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
            style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       
@@ -72,7 +70,7 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
             </div>
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>
-              <p className="mono text-[10px] tracking-[0.2em] text-red-600 uppercase font-bold">Synthesizing Pixels</p>
+              <p className="mono text-[10px] tracking-[0.2em] text-red-600 uppercase font-bold">Processing Document...</p>
             </div>
           </div>
         </div>
@@ -94,7 +92,7 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
           <div className="w-20 h-20 border border-red-900/20 flex items-center justify-center rounded-2xl bg-red-900/5">
              <svg className="w-8 h-8 text-red-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
           </div>
-          <p className="mono text-[10px] uppercase tracking-[0.3em] text-red-700 font-bold">System Idle</p>
+          <p className="mono text-[10px] uppercase tracking-[0.3em] text-red-700 font-bold">Waiting for Image</p>
         </div>
       )}
 
@@ -118,7 +116,7 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
       </div>
 
       <div className="absolute bottom-4 right-4 glass-panel px-3 py-1 rounded border-red-900/10 text-[9px] mono uppercase text-gray-700">
-        Boundless <span className="text-red-700 font-bold">Active</span>
+        Engine <span className="text-red-700 font-bold">Active</span>
       </div>
     </div>
   );
