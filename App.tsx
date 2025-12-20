@@ -1,6 +1,6 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { ProcessingOptions, ModificationRequest, TextReplacement, AccessKey, HistoryEntry } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { ProcessingOptions, ModificationRequest, AccessKey, HistoryEntry } from './types';
 import EditorCanvas from './components/EditorCanvas';
 import ControlPanel from './components/ControlPanel';
 import LoadingScreen from './components/LoadingScreen';
@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAppReady, setIsAppReady] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [errorLog, setErrorLog] = useState<{ message: string; type: 'error' | 'warning' } | null>(null);
   
   const [baseImage, setBaseImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,13 +25,10 @@ const App: React.FC = () => {
   const [generationHistory, setGenerationHistory] = useState<HistoryEntry[]>([]);
   const [canvasImage, setCanvasImage] = useState<string | null>(null);
   
-  const [options] = useState<ProcessingOptions>({
-    forensicStealth: true,
-    metadataStripping: true
-  });
+  const [options] = useState<ProcessingOptions>({ forensicStealth: true, metadataStripping: true });
 
   const [request, setRequest] = useState<ModificationRequest>({
-    textReplacements: [],
+    textReplacements: [{ key: '', value: '' }],
     instructions: `[ SYSTEM MANDATE: SURGICAL RASTER SYNTHESIS ]
 
 PHASE 1: ABSOLUTE BASE PRESERVATION
@@ -52,40 +50,57 @@ PHASE 3: FORENSIC STEALTH EXECUTION
     thinkingMode: true
   });
 
-  const keySequenceRef = useRef<string>('');
+  const sequenceBuffer = useRef<string>('');
+  const sequenceTimer = useRef<number | null>(null);
   const ADMIN_SECRET = 'adminds1';
 
-  // Boot Sequence with Server Validation
+  // GLOBAL Admin Access Trigger - Active Everywhere
   useEffect(() => {
-    const verifyStoredSession = async () => {
-      await cleanupExpiredData();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Catch keys globally
+      sequenceBuffer.current += e.key.toLowerCase();
       
-      const savedKeyStr = sessionStorage.getItem('ds_active_session');
-      if (savedKeyStr) {
-        try {
-          const parsedKey = JSON.parse(savedKeyStr);
-          // RE-VALIDATE WITH SERVER ON EVERY REFRESH
-          // This prevents revoked keys from staying active in local storage
-          const validKey = await validateKey(parsedKey.key);
-          
-          if (validKey) {
-            setActiveKey(validKey);
-            sessionStorage.setItem('ds_active_session', JSON.stringify(validKey));
-            loadUserHistory(validKey.id);
-          } else {
-            // Signal revoked or expired - nuke local session
-            sessionStorage.removeItem('ds_active_session');
-            setActiveKey(null);
-          }
-        } catch (e) {
-          console.error("Critical: Session verification failed during boot sequence.", e);
-          sessionStorage.removeItem('ds_active_session');
-          setActiveKey(null);
-        }
+      if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
+      
+      if (sequenceBuffer.current.includes(ADMIN_SECRET)) {
+        setIsAdminOpen(true);
+        sequenceBuffer.current = '';
+        console.debug("ADMIN_MODE_ENGAGED");
+      }
+
+      // Reset buffer after 1.5 seconds of silence
+      sequenceTimer.current = window.setTimeout(() => {
+        sequenceBuffer.current = '';
+      }, 1500);
+
+      if (sequenceBuffer.current.length > 50) {
+        sequenceBuffer.current = sequenceBuffer.current.slice(-20);
       }
     };
-    
-    verifyStoredSession();
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      if (sequenceTimer.current) window.clearTimeout(sequenceTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const boot = async () => {
+      try {
+        await cleanupExpiredData();
+        const saved = sessionStorage.getItem('ds_active_session');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const valid = await validateKey(parsed.key);
+          if (valid) {
+            setActiveKey(valid);
+            loadUserHistory(valid.id);
+          }
+        }
+      } catch (e) { console.error("Boot error:", e); }
+    };
+    boot();
   }, []);
 
   const loadUserHistory = async (keyId: string) => {
@@ -93,250 +108,154 @@ PHASE 3: FORENSIC STEALTH EXECUTION
     setGenerationHistory(history);
   };
 
-  // Pulse Timer - Monitors Local State
   useEffect(() => {
     if (!activeKey) return;
-    
-    const updatePulse = () => {
+    const interval = setInterval(() => {
       const remaining = formatTimeRemaining(activeKey.expiresAt);
       setTimeRemaining(remaining);
-      
       if (remaining === 'SIGNAL TERMINATED') {
         sessionStorage.removeItem('ds_active_session');
         setActiveKey(null);
       }
-    };
-
-    updatePulse();
-    const interval = setInterval(updatePulse, 30000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [activeKey]);
 
-  const onUnlock = async (key: AccessKey) => {
+  const onUnlock = (key: AccessKey) => {
     setActiveKey(key);
     sessionStorage.setItem('ds_active_session', JSON.stringify(key));
-    await loadUserHistory(key.id);
-  };
-
-  const zoomIn = useCallback(() => setZoom(prev => Math.min(prev + 10, 400)), []);
-  const zoomOut = useCallback(() => setZoom(prev => Math.max(prev - 10, 10)), []);
-  const resetZoom = useCallback(() => setZoom(100), []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keySequenceRef.current += e.key.toLowerCase();
-      if (keySequenceRef.current.length > 20) keySequenceRef.current = keySequenceRef.current.slice(-20);
-      if (keySequenceRef.current.includes(ADMIN_SECRET)) {
-        setIsAdminOpen(true);
-        keySequenceRef.current = '';
-      }
-
-      const isCtrl = e.ctrlKey || e.metaKey;
-      if (isCtrl && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomIn(); }
-      else if (isCtrl && e.key === '-') { e.preventDefault(); zoomOut(); }
-      else if (isCtrl && e.key === '0') { e.preventDefault(); resetZoom(); }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoomIn, zoomOut, resetZoom]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const data = event.target?.result as string;
-        if (data) {
-          setBaseImage(data);
-          setCanvasImage(data);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDownload = () => {
-    if (!canvasImage) return;
-    const link = document.createElement('a');
-    link.href = canvasImage;
-    link.download = `synth-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const setTextReplacements = (replacements: TextReplacement[]) => {
-    setRequest(prev => ({ ...prev, textReplacements: replacements }));
+    loadUserHistory(key.id);
   };
 
   const handleSynthesize = async () => {
-    if (!baseImage && !canvasImage) return;
+    if (!baseImage && !canvasImage) {
+      setErrorLog({ message: "System failure: No source bitmap provided.", type: 'warning' });
+      return;
+    }
     if (!activeKey) return;
 
     setIsLoading(true);
+    setErrorLog(null);
     try {
-      // Periodic check during heavy operations to ensure key status hasn't changed
       const verify = await validateKey(activeKey.key);
-      if (!verify) {
-        sessionStorage.removeItem('ds_active_session');
-        setActiveKey(null);
-        throw new Error("SEC_VIOLATION: Operational license revoked mid-session.");
-      }
+      if (!verify) throw new Error("License validation failure: Protocol terminated.");
 
-      const activeBase = canvasImage || baseImage;
-      const result = await processDocument(activeBase, request, options);
+      const result = await processDocument(canvasImage || baseImage, request, options);
       
       if (result.imageUrl) {
         setCanvasImage(result.imageUrl);
         const entry: HistoryEntry = {
           id: Math.random().toString(36).substring(2, 11),
-          keyId: activeKey.id,
-          imageUrl: result.imageUrl,
-          timestamp: Date.now(),
-          prompt: request.instructions,
-          textReplacements: [...request.textReplacements]
+          keyId: activeKey.id, imageUrl: result.imageUrl, timestamp: Date.now(),
+          prompt: request.instructions, textReplacements: [...request.textReplacements]
         };
         await db.saveHistory(entry);
         setGenerationHistory(prev => [...prev, entry]);
+      } else {
+        const msg = result.thinking || "Neural core returned empty bitstream.";
+        setErrorLog({ message: msg, type: 'error' });
       }
-    } catch (err) {
-      console.error("Synthesis Error:", err);
+    } catch (err: any) {
+      setErrorLog({ message: err.message || "Synthesis pipeline crash.", type: 'error' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const restoreHistory = (entry: HistoryEntry) => {
-    setCanvasImage(entry.imageUrl);
-    setRequest(prev => ({
-      ...prev,
-      instructions: entry.prompt,
-      textReplacements: entry.textReplacements
-    }));
-    setIsHistoryOpen(false);
+  useEffect(() => {
+    if (errorLog) {
+      const timer = setTimeout(() => setErrorLog(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorLog]);
+
+  // Main UI Components
+  const renderMainContent = () => {
+    if (!activeKey) return <AccessKeyLock onUnlock={onUnlock} />;
+    if (!isAppReady) return <LoadingScreen onComplete={() => setIsAppReady(true)} />;
+
+    return (
+      <div className="flex h-screen w-screen bg-[#050508] text-white overflow-hidden fade-in">
+        {/* Side Control Bar */}
+        <div className="w-[340px] flex-shrink-0 border-r border-red-900/10 flex flex-col bg-[#0a0a0c] glass-panel relative z-40">
+          <header className="p-6 border-b border-red-900/10">
+            <h1 className="mono text-2xl font-bold tracking-tighter">DOCUSYNTH <span className="text-red-600">PRO</span></h1>
+            <div className="text-[8px] mono text-red-500 font-bold tracking-[0.3em] mt-1">{timeRemaining}</div>
+          </header>
+          
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+            <section>
+              <input type="file" accept="image/*" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => { 
+                    const data = ev.target?.result as string;
+                    setBaseImage(data); 
+                    setCanvasImage(data); 
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }} className="hidden" id="doc-upload" />
+              <label htmlFor="doc-upload" className="group block border border-red-900/20 p-6 rounded-2xl text-center bg-red-900/5 hover:bg-red-900/10 hover:border-red-600/30 cursor-pointer transition-all duration-300">
+                <div className="mono text-[9px] text-gray-400 uppercase tracking-widest font-bold group-hover:text-red-500 transition-colors">LOAD SOURCE BITMAP</div>
+                <div className="text-[7px] mono text-gray-700 mt-1">PNG / JPEG / WebP Supported</div>
+              </label>
+            </section>
+
+            <section>
+              <label className="text-[9px] mono text-gray-500 uppercase block mb-2 font-bold tracking-widest">Synthesis Directives</label>
+              <textarea value={request.instructions} onChange={(e) => setRequest({...request, instructions: e.target.value})} className="w-full h-64 input-dark p-4 text-[10px] mono rounded-xl resize-none text-gray-400 focus:text-white leading-relaxed" spellCheck="false" />
+            </section>
+          </div>
+        </div>
+
+        {/* Workspace */}
+        <main className="flex-1 relative flex flex-col min-w-0">
+          <div className="h-14 border-b border-red-900/10 flex items-center justify-between px-6 bg-[#0a0a0c]/80 backdrop-blur-md z-30">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsHistoryOpen(true)} className="px-3 py-1.5 bg-red-900/5 border border-red-900/20 rounded-lg mono text-[9px] text-red-500 font-bold hover:bg-red-900/10 transition-all uppercase tracking-widest">ARCHIVES ({generationHistory.length})</button>
+            </div>
+            <div className="flex items-center gap-4">
+              <button onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `synth_${Date.now()}.png`; a.click(); } }} disabled={!canvasImage} className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-xl mono text-[10px] text-white font-bold disabled:opacity-20 uppercase tracking-[0.2em] transition-all shadow-lg shadow-red-950/20">Download Asset</button>
+            </div>
+          </div>
+          <EditorCanvas imageUrl={canvasImage} isLoading={isLoading} zoom={zoom} setZoom={setZoom} />
+        </main>
+
+        <ControlPanel onSynthesize={handleSynthesize} isLoading={isLoading} textReplacements={request.textReplacements} setTextReplacements={(r) => setRequest({...request, textReplacements: r})} />
+        
+        {isHistoryOpen && <HistoryPanel history={generationHistory} onClose={() => setIsHistoryOpen(false)} onRestore={(e) => { setCanvasImage(e.imageUrl); setRequest({...request, textReplacements: e.textReplacements, instructions: e.prompt}); setIsHistoryOpen(false); }} />}
+      </div>
+    );
   };
 
-  if (!activeKey) {
-    return (
-      <>
-        <AccessKeyLock onUnlock={onUnlock} />
-        {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
-      </>
-    );
-  }
-
-  if (!isAppReady) {
-    return <LoadingScreen onComplete={() => setIsAppReady(true)} />;
-  }
-
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#050508] text-white fade-in">
-      <div className="w-[340px] min-w-[340px] flex-shrink-0 h-full bg-[#0a0a0c] border-r border-red-900/10 flex flex-col overflow-hidden glass-panel">
-        <header className="p-6 border-b border-red-900/10">
-          <h1 className="mono text-2xl font-bold text-white tracking-tighter">
-            DOCUSYNTH <span className="text-red-600">PRO</span>
-          </h1>
-          <p className="text-[10px] mono text-gray-600 uppercase tracking-widest mt-1">made by nxman</p>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-          <section>
-            <label className="text-[10px] mono text-gray-500 uppercase tracking-widest font-bold block mb-3">1. Select Document</label>
-            <div className="relative group">
-              <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-              <div className="border border-red-900/10 group-hover:border-red-600/30 p-8 rounded-2xl text-center transition-all bg-red-900/5 hover:bg-red-900/10">
-                <div className="w-10 h-10 mx-auto mb-3 border border-red-900/20 rounded-xl flex items-center justify-center group-hover:border-red-600/30 transition-colors">
-                  <svg className="w-5 h-5 text-red-900 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                </div>
-                <p className="text-[9px] text-gray-500 mono uppercase tracking-widest font-bold">Upload Base Image</p>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-[10px] mono text-gray-500 uppercase tracking-widest font-bold">2. Instructions</label>
-              <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setRequest(prev => ({ ...prev, thinkingMode: !prev.thinkingMode }))}>
-                <span className="text-[9px] mono text-gray-600 uppercase group-hover:text-red-500 font-bold">Neural Logic</span>
-                <div className={`w-7 h-3.5 rounded-full relative transition-colors p-0.5 ${request.thinkingMode ? 'bg-red-600' : 'bg-gray-900'}`}>
-                   <div className={`w-2.5 h-2.5 bg-white rounded-full transition-all ${request.thinkingMode ? 'translate-x-3.5' : 'translate-x-0'}`}></div>
-                </div>
-              </div>
-            </div>
-            
-            <textarea 
-              placeholder="Describe what to edit..."
-              value={request.instructions}
-              onChange={(e) => setRequest({ ...request, instructions: e.target.value })}
-              className="w-full h-64 input-dark p-4 text-[10px] mono outline-none rounded-xl resize-none mb-4 text-gray-300 placeholder:text-gray-800 leading-relaxed"
-            />
-          </section>
-        </div>
-
-        <footer className="p-4 border-t border-red-900/10 flex flex-col items-center gap-1">
-          <span className="text-[8px] mono text-red-600 font-bold tracking-[0.2em] uppercase">{timeRemaining}</span>
-          <span className="text-[7px] mono text-gray-800 tracking-[0.5em] uppercase opacity-40">License: {activeKey.duration}</span>
-        </footer>
-      </div>
-
-      <main className="flex-1 relative flex flex-col bg-[#050508] min-w-0">
-        <div className="h-16 bg-[#0a0a0c]/80 border-b border-red-900/10 flex items-center justify-between px-8 z-30 backdrop-blur-xl">
-          <div className="flex items-center gap-6">
-             <div className="flex items-center gap-4">
-               <button 
-                onClick={() => setIsHistoryOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-900/5 hover:bg-red-900/10 border border-red-900/20 rounded-lg text-gray-400 hover:text-red-500 transition-all"
-               >
-                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                 <span className="text-[10px] mono font-bold uppercase">Archives ({generationHistory.length})</span>
-               </button>
-             </div>
-             <button 
-               onClick={resetZoom}
-               className="px-3 py-1 bg-red-900/5 border border-red-900/10 rounded hover:bg-red-900/10 transition-colors"
-             >
-               <span className="text-[10px] mono text-red-600 font-bold">{zoom}%</span>
-             </button>
+    <>
+      {/* Global Notifications Layer */}
+      {errorLog && (
+        <div className="fixed top-6 right-6 z-[1000] flex items-center gap-4 bg-[#0a0a0c] border border-red-600/50 p-5 rounded-2xl shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-slide-in-right glass-panel max-w-md">
+          <div className="flex-shrink-0 relative">
+             <div className={`w-3 h-3 rounded-full ${errorLog.type === 'error' ? 'bg-red-600 animate-pulse shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500 shadow-[0_0_10px_#eab308]'}`}></div>
           </div>
-          
-          <button 
-            onClick={handleDownload}
-            disabled={!canvasImage}
-            className="flex items-center gap-2 px-6 py-2.5 bg-red-600/10 border border-red-600/30 hover:bg-red-600/20 disabled:opacity-20 transition-all rounded-xl text-[10px] mono text-red-500 uppercase font-bold tracking-[0.2em]"
-          >
-            Download Final
+          <div className="flex-1 overflow-hidden">
+            <h4 className="mono text-[10px] font-black uppercase tracking-[0.3em] text-red-600 mb-1.5 flex items-center gap-2">
+              <span className="opacity-50">#</span> {errorLog.type === 'error' ? 'CORE_EXCEPTION' : 'PROCESS_WARNING'}
+            </h4>
+            <p className="mono text-[11px] text-gray-300 leading-relaxed uppercase break-words">{errorLog.message}</p>
+          </div>
+          <button onClick={() => setErrorLog(null)} className="text-gray-500 hover:text-white transition-all p-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-
-        <EditorCanvas 
-          imageUrl={canvasImage} 
-          isLoading={isLoading} 
-          zoom={zoom} 
-          setZoom={setZoom}
-        />
-      </main>
-
-      <ControlPanel 
-        onSynthesize={handleSynthesize} 
-        isLoading={isLoading}
-        textReplacements={request.textReplacements}
-        setTextReplacements={setTextReplacements}
-      />
-
-      {isHistoryOpen && (
-        <HistoryPanel 
-          history={generationHistory} 
-          onRestore={restoreHistory} 
-          onClose={() => setIsHistoryOpen(false)} 
-        />
       )}
 
-      {isAdminOpen && (
-        <AdminPanel onClose={() => setIsAdminOpen(false)} />
-      )}
-    </div>
+      {/* Primary Application Logic */}
+      {renderMainContent()}
+
+      {/* Global Admin Layer */}
+      {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
+    </>
   );
 };
 
