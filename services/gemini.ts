@@ -12,15 +12,20 @@ export const processDocument = async (
   options: ProcessingOptions
 ): Promise<{ imageUrl?: string; thinking?: string; quotaError?: boolean }> => {
   
-  // Requirement: API Key must be obtained exclusively from process.env.API_KEY
+  // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
   const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
-    return { thinking: "CORE_ERROR: Operational API Key not detected in environment." };
+    // We return a specific message that triggers the key selection flow in the UI.
+    return { 
+      thinking: "CORE_LINK_ERROR: No operational API key detected in process.env. Please ensure API_KEY is set in Vercel or use 'Manage API Link' to select a key manually.",
+      quotaError: true 
+    };
   }
 
-  // Create fresh instance per request to ensure up-to-date state
-  const ai = new GoogleGenAI({ apiKey });
+  // Create fresh instance right before making an API call to ensure it uses the current key.
+  // Using process.env.API_KEY directly as per SDK requirements.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   
   const mappingDirectives = request.textReplacements
     .filter(r => r.key && r.value)
@@ -35,7 +40,7 @@ OBJECTIVE: Perform forensic-grade bitmap reconstruction while maintaining 100% p
 PHASE 1: ABSOLUTE BASE PRESERVATION
 - RETAIN: 1:1 pixel parity, source aspect ratio, and native sensor noise profile.
 - GEOMETRIC FIDELITY: Maintain document curvature, perspective distortions, and substrate warping.
-- SECURITY ARCHITECTURE: Preserve all holographic guilloche patterns, spectral micro-printing, and UV-reactive ink signatures.
+- SECURITY ARCHITECTURE: Preserve holographic guilloche patterns, spectral micro-printing, and UV-reactive ink signatures.
 
 PHASE 2: NEURAL INK INTEGRATION
 ${mappingDirectives}
@@ -66,12 +71,10 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
       });
     }
 
-    // Using 'gemini-2.5-flash-image' with proper thinkingConfig as per guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts },
       config: {
-        // Thinking budget for 2.5 Flash series is max 24576
         thinkingConfig: { thinkingBudget: request.thinkingMode ? 24576 : 0 }
       }
     });
@@ -79,7 +82,6 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
     const candidate = response.candidates?.[0];
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
-        // Find the image part, do not assume it is the first part.
         if (part.inlineData) {
           return { 
             imageUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` 
@@ -95,21 +97,22 @@ OUTPUT: Generate and return only the synthesized image. Do not include text expl
   } catch (err: any) {
     console.error("Gemini Engine Exception:", err);
     
-    // Check for quota/billing errors or missing entity errors
-    const isQuotaError = err.message?.includes('429') || 
-                        err.message?.includes('quota') || 
-                        err.message?.includes('limit: 0') ||
-                        err.message?.includes('Requested entity was not found');
+    const msg = err.message || "";
+    // Check for quota/billing errors or missing project errors.
+    const isQuotaError = msg.includes('429') || 
+                        msg.includes('quota') || 
+                        msg.includes('limit: 0') ||
+                        msg.includes('Requested entity was not found');
 
     if (isQuotaError) {
       return { 
-        thinking: "RESOURCE_EXHAUSTED: Free tier limit reached or model disabled for this project. Use 'Manage API Link' to connect a paid GCP project.",
+        thinking: "RESOURCE_EXHAUSTED: Project limit reached or project not found. Use 'Manage API Link' to connect a paid GCP project with billing enabled.",
         quotaError: true
       };
     }
 
     return { 
-      thinking: `CORE_LINK_ERROR: ${err.message || "An unexpected error occurred during neural synthesis."}`
+      thinking: `CORE_LINK_ERROR: ${msg || "An unexpected error occurred during neural synthesis."}`
     };
   }
 };
