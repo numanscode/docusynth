@@ -1,194 +1,231 @@
-
 import React, { useState, useEffect } from 'react';
-import { AccessKey } from '../types';
-import { db, generateKey } from '../services/auth';
+import { motion } from 'motion/react';
+import { 
+  Shield, 
+  Key, 
+  Trash2, 
+  RefreshCw, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  Activity, 
+  Database, 
+  Plus, 
+  AlertCircle,
+  Copy,
+  Check
+} from 'lucide-react';
+import { db, generateKey, revokeKey, formatTimeRemaining } from '../services/auth';
 import { testAiConnection } from '../services/gemini';
+import { AccessKey, AdminStats } from '../types';
 
-interface AdminPanelProps { onClose: () => void; }
-
-const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
+const AdminPanel: React.FC = () => {
   const [keys, setKeys] = useState<AccessKey[]>([]);
-  const [selectedDuration, setSelectedDuration] = useState<AccessKey['duration']>('7day');
-  const [search, setSearch] = useState('');
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(true);
-  
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [activeModel, setActiveModel] = useState('gemini-2.5-flash-image');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [stats, setStats] = useState<AdminStats>({ totalGenerations: 0, activeKeys: 0, expiredKeys: 0 });
+  const [aiStatus, setAiStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [newKeyDuration, setNewKeyDuration] = useState<AccessKey['duration']>('30min');
 
-  const [testState, setTestState] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({
-    status: 'idle', message: ''
-  });
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const allKeys = await db.getKeys();
+      const history = await db.getHistory();
+      
+      setKeys(allKeys);
+      setStats({
+        totalGenerations: history.length,
+        activeKeys: allKeys.filter(k => !k.revoked && (!k.expiresAt || k.expiresAt > Date.now())).length,
+        expiredKeys: allKeys.filter(k => k.expiresAt && k.expiresAt <= Date.now()).length
+      });
+      
+      const ai = await testAiConnection();
+      setAiStatus(ai);
+    } catch (err) {
+      console.error("Fetch Data Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    refreshKeys();
-    loadOperationalConfig();
+    fetchData();
   }, []);
 
-  const loadOperationalConfig = async () => {
-    const key = await db.getSettings('gemini_api_key');
-    const model = await db.getSettings('active_model');
-    if (key) setApiKeyInput(key);
-    if (model) setActiveModel(model);
+  const handleGenerateKey = async () => {
+    const key = await generateKey(newKeyDuration);
+    if (key) fetchData();
   };
 
-  const handleSaveModel = async (model: string) => {
-    setActiveModel(model);
-    await db.setSettings('active_model', model);
-  };
-
-  const handleSaveApiKey = async () => {
-    setSaveStatus('saving');
-    try {
-      await db.setSettings('gemini_api_key', apiKeyInput.trim());
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {
-      setSaveStatus('idle');
-    }
-  };
-
-  const handleTestAi = async () => {
-    setTestState({ status: 'testing', message: 'Initiating Neural Probe...' });
-    const result = await testAiConnection();
-    setTestState({ 
-      status: result.success ? 'success' : 'error', 
-      message: result.message 
-    });
-  };
-
-  const refreshKeys = async () => {
-    setIsSyncing(true);
-    try {
-      const data = await db.getKeys();
-      setKeys(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    try {
-      const newKey = await generateKey(selectedDuration);
-      if (newKey) await refreshKeys();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleRevoke = async (id: string) => {
-    try {
-      const updated = keys.map(k => k.id === id ? { ...k, revoked: true } : k);
-      await db.saveKeys(updated);
-      setKeys(updated);
-    } catch (e) {}
+  const handleRevokeKey = async (id: string) => {
+    await revokeKey(id);
+    fetchData();
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    setCopyFeedback(text);
-    setTimeout(() => setCopyFeedback(null), 2000);
+    setCopiedKey(text);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const filteredKeys = keys.filter(k => k.key.toLowerCase().includes(search.toLowerCase())).reverse();
-  const now = Date.now();
-
   return (
-    <div className="fixed inset-0 z-[400] bg-[#020204] flex flex-col animate-fade-in overflow-hidden">
-      <div className="flex-1 flex flex-col relative z-10 h-full">
-        <header className="h-14 border-b border-white/[0.05] flex items-center justify-between px-6 bg-[#09090b]/90 backdrop-blur-xl shrink-0">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-red-600 animate-pulse' : 'bg-green-600'}`}></div>
-            <h2 className="text-base font-black text-white tracking-tighter uppercase italic">Control Node Sigma</h2>
+    <div className="min-h-screen bg-black text-white p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-red-600/10 rounded-2xl border border-red-600/20">
+              <Shield className="w-8 h-8 text-red-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight uppercase">Admin Command Center</h1>
+              <p className="text-zinc-500 text-xs font-mono">DOCUSYNTH v6.0 / ROOT ACCESS</p>
+            </div>
           </div>
-          <button onClick={onClose} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full mono text-[8px] font-black uppercase tracking-widest transition-all shadow-lg">Exit Interface</button>
-        </header>
-        <div className="flex-1 flex overflow-hidden">
-          <aside className="w-80 border-r border-white/[0.05] bg-[#050508]/90 p-5 space-y-6 shrink-0 flex flex-col custom-scrollbar overflow-y-auto">
-            
-            <section className="space-y-3">
-              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Neural Engine Config</h3>
-              
-              <div className="space-y-2">
-                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Global Operational Key</label>
-                <input 
-                  type="password"
-                  placeholder="API_KEY_REQUIRED"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full bg-[#0c0c0e] border border-white/[0.05] p-3 rounded-xl mono text-[9px] text-white outline-none focus:border-red-600/40"
-                />
-                <button 
-                  onClick={handleSaveApiKey}
-                  className="w-full py-2.5 bg-red-900/10 hover:bg-red-600 text-red-600 hover:text-white border border-red-900/30 rounded-lg mono text-[8px] font-black uppercase tracking-widest transition-all"
-                >
-                  {saveStatus === 'idle' ? 'COMMIT KEY' : saveStatus === 'saving' ? 'UPLOADING...' : 'KEY SYNCED'}
-                </button>
-              </div>
+          <button 
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-sm font-medium transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            REFRESH SYSTEM
+          </button>
+        </div>
 
-              <div className="space-y-2 pt-2">
-                <label className="text-[7px] mono text-gray-500 uppercase font-bold tracking-widest">Synthesis Tier</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => handleSaveModel('gemini-2.5-flash-image')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-2.5-flash-image' ? 'bg-red-600 text-white border-red-600' : 'bg-white/5 border-white/10 text-gray-500'}`}>FLASH</button>
-                  <button onClick={() => handleSaveModel('gemini-3-pro-image-preview')} className={`py-2.5 rounded-xl mono text-[7px] font-black border transition-all ${activeModel === 'gemini-3-pro-image-preview' ? 'bg-red-600 text-white border-red-600' : 'bg-white/5 border-white/10 text-gray-500'}`}>PRO</button>
-                </div>
-              </div>
-            </section>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl">
+            <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono mb-2">
+              <Activity className="w-3 h-3" /> TOTAL GENERATIONS
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.totalGenerations}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl">
+            <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono mb-2">
+              <CheckCircle2 className="w-3 h-3 text-green-500" /> ACTIVE KEYS
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.activeKeys}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl">
+            <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono mb-2">
+              <XCircle className="w-3 h-3 text-red-500" /> EXPIRED KEYS
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.expiredKeys}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl">
+            <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono mb-2">
+              <Database className="w-3 h-3 text-red-500" /> CORE STATUS
+            </div>
+            <div className={`text-sm font-bold ${aiStatus?.success ? 'text-green-500' : 'text-red-500'}`}>
+              {aiStatus ? aiStatus.message.toUpperCase() : 'CHECKING...'}
+            </div>
+          </div>
+        </div>
 
-            <section className="space-y-3 pt-4 border-t border-white/[0.03]">
-              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Diagnostics</h3>
-              <button onClick={handleTestAi} disabled={testState.status === 'testing'} className="w-full py-3 bg-white/[0.03] hover:bg-white/[0.08] text-white border border-white/[0.1] rounded-xl mono text-[8px] font-black uppercase tracking-widest transition-all">
-                {testState.status === 'testing' ? 'PROBING...' : 'TEST NEURAL LINK'}
-              </button>
-              {testState.status !== 'idle' && (
-                <div className={`p-4 rounded-2xl border mono text-[9px] uppercase leading-relaxed ${testState.status === 'success' ? 'bg-green-950/10 border-green-900/30 text-green-500' : 'bg-red-950/10 border-red-900/30 text-red-500'}`}>
-                  <div className="font-black mb-1">PROBE_RESULT: {testState.status}</div>
-                  <div className="opacity-80 break-words">{testState.message}</div>
-                </div>
-              )}
-            </section>
-            
-            <section className="space-y-2 pt-4 border-t border-white/[0.03] mt-auto">
-              <h3 className="mono text-[8px] text-red-600 font-black uppercase tracking-[0.3em]">Issue Protocol</h3>
-              {(['7day', '14day', '1month'] as const).map((d) => (
-                <button key={d} onClick={() => setSelectedDuration(d)} className={`w-full px-3 py-2.5 rounded-xl mono text-[7px] text-left border uppercase font-black tracking-widest ${selectedDuration === d ? 'bg-red-600 text-white border-red-600' : 'bg-white/[0.01] border-white/[0.05] text-gray-600'}`}>{d} Access</button>
-              ))}
-              <button onClick={handleGenerate} disabled={isSyncing} className="w-full py-4 bg-white text-black hover:bg-red-600 hover:text-white rounded-xl mono text-[9px] font-black uppercase tracking-[0.2em] transition-all">GENERATE LICENSE</button>
-            </section>
-          </aside>
-          <main className="flex-1 bg-black/20 flex flex-col p-6 space-y-5 overflow-hidden">
-            <input type="text" placeholder="FILTER LICENSE SIGNATURES..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#0c0c0e] border border-white/[0.05] p-4 rounded-2xl mono text-[10px] text-white outline-none focus:border-red-600/40" />
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {filteredKeys.map((k) => {
-                  const isExpired = k.expiresAt && k.expiresAt < now;
-                  const isActive = k.activatedAt && !isExpired && !k.revoked;
-                  const isCopied = copyFeedback === k.key;
-                  return (
-                    <div key={k.id} className="group relative bg-[#0c0c0e] border border-white/[0.05] hover:border-red-600/30 rounded-2xl p-5 transition-all duration-500">
-                      <div className="flex flex-col gap-3 relative z-10">
-                        <div className="flex items-center justify-between">
-                          <span onClick={() => copyToClipboard(k.key)} className={`mono text-lg font-black tracking-tighter cursor-pointer transition-all ${isCopied ? 'text-green-500' : 'text-white hover:text-red-500'}`}>{k.key}</span>
-                          <div className={`px-3 py-1 rounded-full mono text-[7px] font-black uppercase border ${k.revoked ? 'border-red-900 text-red-900' : isActive ? 'border-red-600 text-red-500' : 'border-gray-800 text-gray-700'}`}>{isActive ? 'Active' : 'Idle'}</div>
-                        </div>
-                        <div className="flex items-center justify-between pt-2 border-t border-white/[0.03]">
-                          <span className="mono text-[8px] text-gray-600 uppercase font-black">{k.duration} tier</span>
-                          {!k.revoked && !isExpired && <button onClick={() => handleRevoke(k.id)} className="px-3 py-1.5 bg-red-950/50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-900/30 mono text-[7px] font-black uppercase transition-all">Revoke</button>}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* Key Generation */}
+        <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-3xl">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h2 className="text-lg font-bold mb-1 uppercase">Generate Access Key</h2>
+              <p className="text-zinc-500 text-xs font-mono">CREATE NEW SESSION CREDENTIALS</p>
+              <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-red-500/60">
+                <Shield className="w-3 h-3" /> MASTER OVERRIDE: ADMINDS1
               </div>
             </div>
-          </main>
+            <div className="flex items-center gap-3">
+              <select 
+                value={newKeyDuration}
+                onChange={(e) => setNewKeyDuration(e.target.value as any)}
+                className="bg-black border border-zinc-800 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-red-500"
+              >
+                <option value="30min">30 MINUTES</option>
+                <option value="7day">7 DAYS</option>
+                <option value="14day">14 DAYS</option>
+                <option value="30day">30 DAYS</option>
+              </select>
+              <button 
+                onClick={handleGenerateKey}
+                className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 rounded-xl text-sm font-bold transition-all shadow-lg shadow-red-600/20"
+              >
+                <Plus className="w-4 h-4" /> GENERATE
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Keys Table */}
+        <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl overflow-hidden">
+          <div className="p-6 border-b border-zinc-800">
+            <h2 className="text-lg font-bold uppercase">Active Credentials</h2>
+            <p className="text-zinc-500 text-xs font-mono">MANAGE SESSION KEYS AND EXPIRATION</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-black/50 text-zinc-500 text-[10px] font-mono uppercase tracking-widest border-b border-zinc-800">
+                  <th className="px-6 py-4 font-medium">Access Key</th>
+                  <th className="px-6 py-4 font-medium">Duration</th>
+                  <th className="px-6 py-4 font-medium">Status / Time Remaining</th>
+                  <th className="px-6 py-4 font-medium">Created At</th>
+                  <th className="px-6 py-4 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {keys.map((key) => (
+                  <tr key={key.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <code className="text-red-500 font-mono text-sm bg-red-500/5 px-2 py-1 rounded border border-red-500/10">
+                          {key.key}
+                        </code>
+                        <button 
+                          onClick={() => copyToClipboard(key.key)}
+                          className="p-1.5 hover:bg-zinc-700 rounded transition-colors text-zinc-500"
+                        >
+                          {copiedKey === key.key ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-mono text-zinc-400 uppercase">{key.duration}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3 h-3 text-zinc-500" />
+                        <span className={`text-xs font-mono ${key.revoked ? 'text-red-500' : 'text-zinc-300'}`}>
+                          {key.revoked ? 'REVOKED' : formatTimeRemaining(key.expiresAt)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-mono text-zinc-500">
+                        {new Date(key.createdAt).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {!key.revoked && (
+                        <button 
+                          onClick={() => handleRevokeKey(key.id)}
+                          className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-all text-zinc-500"
+                          title="Revoke Key"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {keys.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-zinc-600 font-mono text-sm">
+                      NO ACTIVE CREDENTIALS FOUND IN DATABASE
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

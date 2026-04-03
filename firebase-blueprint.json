@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information from Google Sign-in.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["uid", "email"]
+    },
+    "AccessKey": {
+      "title": "Access Key",
+      "description": "License key for document synthesis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "key": { "type": "string" },
+        "duration": { "type": "string", "enum": ["30min", "7day", "14day", "30day"] },
+        "durationMs": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "activatedAt": { "type": "number" },
+        "expiresAt": { "type": "number" },
+        "revoked": { "type": "boolean" }
+      },
+      "required": ["id", "key", "duration", "durationMs", "createdAt"]
+    },
+    "HistoryEntry": {
+      "title": "Synthesis History",
+      "description": "Record of a document synthesis operation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "keyId": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Base64 or URL" },
+        "timestamp": { "type": "number" },
+        "prompt": { "type": "string" },
+        "textReplacements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "keyId", "imageUrl", "timestamp"]
+    },
+    "Setting": {
+      "title": "System Setting",
+      "description": "Global or user-specific setting.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "value": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "value"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/access_keys/{keyId}": {
+      "schema": "AccessKey",
+      "description": "License keys."
+    },
+    "/history/{historyId}": {
+      "schema": "HistoryEntry",
+      "description": "Synthesis history entries."
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "System settings."
+    }
+  }
+}

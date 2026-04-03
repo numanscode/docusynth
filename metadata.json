@@ -1,7 +1,5 @@
 {
-  "name": "DocuSynth Pro",
-  "description": "Advanced AI-powered document processing and synthesis engine with high-fidelity image editing and forensic-grade realism controls.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "name": "DocuSynth",
+  "description": "Advanced AI-powered document processing and synthesis engine.",
+  "requestFramePermissions": []
 }

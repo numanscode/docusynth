@@ -1,111 +1,116 @@
-
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Key, Shield, Lock, AlertTriangle } from 'lucide-react';
 import { validateKey } from '../services/auth';
 import { AccessKey } from '../types';
 
 interface AccessKeyLockProps {
   onUnlock: (key: AccessKey) => void;
+  onAdminAccess: () => void;
 }
 
-const AccessKeyLock: React.FC<AccessKeyLockProps> = ({ onUnlock }) => {
-  const [keyInput, setKeyInput] = useState('');
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+const AccessKeyLock: React.FC<AccessKeyLockProps> = ({ onUnlock, onAdminAccess }) => {
+  const [inputKey, setInputKey] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isVerifying) return;
+  const handleUnlock = async () => {
+    const trimmedKey = inputKey.trim().toUpperCase();
+    if (!trimmedKey) return;
 
-    setIsVerifying(true);
-    setError(false);
+    if (trimmedKey === 'ADMINDS1') {
+      onAdminAccess();
+      return;
+    }
 
+    setLoading(true);
+    setError('');
+    
     try {
-      const validKey = await validateKey(keyInput.trim().toUpperCase());
-      if (validKey) {
-        onUnlock(validKey);
+      const key = await validateKey(trimmedKey);
+      if (key) {
+        onUnlock(key);
       } else {
-        setError(true);
-        setShake(true);
-        setTimeout(() => setShake(false), 500);
+        setError('INVALID OR EXPIRED ACCESS KEY');
       }
     } catch (err) {
-      setError(true);
+      setError('SYSTEM CONNECTION ERROR');
     } finally {
-      setIsVerifying(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-[#020204] flex flex-col items-center justify-center p-6 overflow-hidden">
-      <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(239, 68, 68, 0.15) 0%, transparent 70%)' }}></div>
+    <div className="fixed inset-0 bg-black flex items-center justify-center p-4 z-[9999]">
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="h-full w-full bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]" />
       </div>
 
-      <div className={`w-full max-w-md flex flex-col items-center transition-all duration-300 ${shake ? 'animate-shake' : ''}`}>
-        <div className="mb-16 text-center">
-          <div className="relative inline-block mb-4">
-            <h1 className="mono text-5xl font-black tracking-tighter text-white">
-              DOCUSYNTH <span className="text-red-600">PRO</span>
-            </h1>
-            <div className="absolute -bottom-2 left-0 w-full h-[3px] bg-red-600 shadow-[0_0_15px_#ef4444]"></div>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-red-600 to-red-500" />
+        
+        <div className="flex justify-center mb-6">
+          <div className="p-4 bg-zinc-800 rounded-full border border-zinc-700">
+            <Shield className="w-8 h-8 text-red-500" />
           </div>
-          <p className="mono text-[11px] text-gray-500 uppercase tracking-[0.8em] mt-8 opacity-40">Operational License Required</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full space-y-6">
-          <div className="relative group">
-            <input 
+        <h1 className="text-2xl font-bold text-center text-white mb-2 tracking-tight uppercase">
+          DocuSynth
+        </h1>
+        <p className="text-zinc-500 text-center text-sm mb-8 font-mono">
+          SECURE ACCESS PROTOCOL v6.0
+        </p>
+
+        <div className="space-y-4">
+          <div className="relative">
+            <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input
               type="text"
-              autoFocus
-              autoComplete="off"
-              spellCheck="false"
-              disabled={isVerifying}
-              placeholder="DS-XXXX-XXXX"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value.toUpperCase())}
-              className={`w-full bg-[#08080a] border-2 p-6 rounded-3xl text-center mono text-lg outline-none transition-all duration-500 tracking-[0.2em] font-black placeholder:text-gray-900 ${
-                error ? 'border-red-600 text-red-600 shadow-[0_0_40px_rgba(239,68,68,0.2)]' : 'border-red-900/20 text-white focus:border-red-600/50 focus:shadow-[0_0_30px_rgba(239,68,68,0.1)]'
-              } ${isVerifying ? 'opacity-50' : ''}`}
+              value={inputKey}
+              onChange={(e) => setInputKey(e.target.value.toUpperCase())}
+              placeholder="ENTER ACCESS KEY"
+              className="w-full bg-black border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white font-mono text-sm focus:outline-none focus:border-red-500 transition-colors"
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
             />
           </div>
 
-          <button 
-            type="submit"
-            disabled={isVerifying}
-            className="w-full py-6 bg-red-700 hover:bg-red-600 transition-all duration-500 rounded-3xl mono text-[11px] uppercase tracking-[0.6em] font-black text-white shadow-2xl shadow-red-950/50 active:scale-95 hover:scale-[1.02] flex items-center justify-center gap-3"
-          >
-            {isVerifying ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                VERIFYING SIGNAL...
-              </>
-            ) : 'Authenticate Protocol'}
-          </button>
-        </form>
-
-        <div className="h-10 mt-6 flex items-center justify-center">
-          {error && !isVerifying && (
-            <p className="mono text-[10px] text-red-600 uppercase tracking-[0.3em] animate-pulse font-black">
-              ERR_CODE: INVALID_OR_EXPIRED_LICENSE
-            </p>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 text-red-500 text-xs font-mono bg-red-500/10 p-3 rounded-xl border border-red-500/20"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </motion.div>
           )}
+
+          <button
+            onClick={handleUnlock}
+            disabled={loading}
+            className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm tracking-widest shadow-lg shadow-red-600/20"
+          >
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                INITIALIZE SESSION
+              </>
+            )}
+          </button>
         </div>
-      </div>
 
-      <div className="absolute bottom-12 flex flex-col items-center gap-2 opacity-30">
-        <p className="mono text-[8px] text-gray-700 tracking-[1.2em] uppercase font-bold">Encrypted Session Layer 09</p>
-        <p className="mono text-[8px] text-gray-800 uppercase tracking-widest italic">DocuSynth Core v16.1 // Advanced Synthesis</p>
-      </div>
-
-      <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
-        }
-        .animate-shake { animation: shake 0.2s ease-in-out infinite; }
-      `}</style>
+        <div className="mt-8 pt-6 border-t border-zinc-800 flex justify-between items-center text-[10px] text-zinc-600 font-mono">
+          <span>ENCRYPTION: AES-256</span>
+          <span>STATUS: STANDBY</span>
+        </div>
+      </motion.div>
     </div>
   );
 };

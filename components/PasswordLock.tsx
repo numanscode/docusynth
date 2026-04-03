@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface PasswordLockProps {
@@ -22,49 +21,48 @@ const PasswordLock: React.FC<PasswordLockProps> = ({ onUnlock }) => {
 
   return (
     <div className="fixed inset-0 z-[200] bg-[#050508] flex flex-col items-center justify-center p-6 overflow-hidden">
-      {/* Background Ambience */}
+      <div className="glow-aura opacity-30"></div>
       <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(239, 68, 68, 0.1) 0%, transparent 70%)' }}></div>
+        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0%, transparent 70%)' }}></div>
       </div>
 
       <div className={`w-full max-w-sm flex flex-col items-center transition-all duration-300 ${error ? 'translate-x-2' : ''}`}>
         <div className="mb-12 text-center">
-          <h1 className="mono text-3xl font-bold tracking-tighter text-white mb-2">
-            DOCUSYNTH <span className="text-red-600">PRO</span>
+          <h1 className="text-5xl font-black tracking-tighter text-silver mb-2">
+            DOCUSYNTH
           </h1>
-          <p className="mono text-[10px] text-gray-500 uppercase tracking-[0.5em]">Restricted Access Area</p>
+          <p className="mono text-[10px] text-gray-500 uppercase tracking-[0.5em] opacity-40">Restricted Admin Layer</p>
         </div>
 
         <form onSubmit={handleSubmit} className="w-full space-y-4">
-          <div className="relative group">
+          <div className="glass-card p-1.5 border-white/5 bg-white/5 backdrop-blur-3xl shadow-xl">
             <input 
               type="password"
               autoFocus
-              placeholder="ENTER OPERATIONAL PASSCODE"
+              placeholder="Operational Passcode"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`w-full input-dark p-4 rounded-xl text-center mono text-sm outline-none transition-all duration-300 ${error ? 'border-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'border-red-900/20'}`}
+              className={`w-full bg-black/40 border-0 p-5 rounded-2xl text-center mono text-sm outline-none transition-all duration-300 ${error ? 'text-magenta' : 'text-white'}`}
             />
-            <div className="absolute inset-0 rounded-xl pointer-events-none border border-transparent group-focus-within:border-red-600/30 transition-all"></div>
           </div>
 
           <button 
             type="submit"
-            className="w-full py-4 bg-red-700 hover:bg-red-600 transition-all rounded-xl mono text-[10px] uppercase tracking-[0.4em] font-bold text-white shadow-lg shadow-red-950/30 active:scale-95"
+            className="w-full py-5 btn-magenta rounded-2xl mono text-[10px] uppercase tracking-[0.4em] font-black text-white active:scale-95 shadow-xl"
           >
             Authenticate
           </button>
         </form>
 
         {error && (
-          <p className="mt-4 mono text-[9px] text-red-600 uppercase tracking-widest animate-pulse font-bold">
-            Access Denied: Invalid Operational Credentials
+          <p className="mt-6 mono text-[10px] text-magenta uppercase tracking-widest animate-pulse font-black">
+            Access Denied
           </p>
         )}
       </div>
 
-      <div className="absolute bottom-12 mono text-[8px] text-gray-700 tracking-[1em] uppercase opacity-40">
-        Authentication Protocol Required // Shadow Protocol
+      <div className="absolute bottom-12 mono text-[8px] text-gray-800 tracking-[1em] uppercase font-bold opacity-30">
+        Internal Auth Node
       </div>
     </div>
   );

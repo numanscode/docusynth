@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string
+    //   - photoURL: string
+    //   - role: string (enum: ['user', 'admin'])
+    //   - createdAt: number
+    //
+    // Collection: access_keys
+    // Document ID: {keyId}
+    // Fields:
+    //   - id: string (required)
+    //   - key: string (required)
+    //   - duration: string
+    //   - durationMs: number
+    //   - createdAt: number
+    //   - activatedAt: number
+    //   - expiresAt: number
+    //   - revoked: boolean
+    //   - userId: string
+    //
+    // Collection: history
+    // Document ID: {historyId}
+    // Fields:
+    //   - id: string (required)
+    //   - userId: string (required)
+    //   - keyId: string
+    //   - imageUrl: string (required, base64 or URL)
+    //   - timestamp: number (required)
+    //   - prompt: string
+    //   - textReplacements: list
+    //
+    // Collection: settings
+    // Document ID: {settingId}
+    // Fields:
+    //   - id: string (required)
+    //   - value: string (required)
+    //   - updatedAt: number
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Since Google Login is removed, we rely on the app's internal logic for admin actions
+      // but we still keep this for potential future auth or manual overrides.
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "nnotfound101@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidAccessKey(data) {
+      return data.keys().hasAll(['id', 'key', 'duration', 'durationMs', 'createdAt']) &&
+             data.id is string &&
+             data.key is string &&
+             data.duration is string &&
+             data.durationMs is number &&
+             data.createdAt is number;
+    }
+
+    function isValidHistoryEntry(data) {
+      return data.keys().hasAll(['id', 'imageUrl', 'timestamp']) &&
+             data.id is string &&
+             data.imageUrl is string &&
+             data.imageUrl.size() < 2000000 && // Limit base64 size
+             data.timestamp is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read, write: if true; // Allow all for now since auth is removed
+    }
+
+    match /access_keys/{keyId} {
+      allow read: if true;
+      allow create: if true; // Admin panel needs to create keys
+      allow update: if true; // Activation needs to update keys
+      allow delete: if true;
+    }
+
+    match /history/{historyId} {
+      allow read: if true;
+      allow create: if isValidHistoryEntry(request.resource.data);
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

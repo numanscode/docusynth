@@ -1,92 +1,71 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ProcessingOptions, ModificationRequest, AccessKey, HistoryEntry } from './types';
-import EditorCanvas from './components/EditorCanvas';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Shield, 
+  History, 
+  Settings, 
+  LogOut, 
+  Activity,
+  Lock,
+  ChevronRight,
+  AlertCircle
+} from 'lucide-react';
 import ControlPanel from './components/ControlPanel';
-import LoadingScreen from './components/LoadingScreen';
+import EditorCanvas from './components/EditorCanvas';
+import HistoryPanel from './components/HistoryPanel';
 import AccessKeyLock from './components/AccessKeyLock';
 import AdminPanel from './components/AdminPanel';
-import HistoryPanel from './components/HistoryPanel';
 import { processDocument } from './services/gemini';
-import { db, cleanupExpiredData, formatTimeRemaining, validateKey } from './services/auth';
+import { db, cleanupExpiredData, formatTimeRemaining } from './services/auth';
+import { ModificationRequest, ProcessingOptions, HistoryEntry, AccessKey } from './types';
 
 const App: React.FC = () => {
   const [activeKey, setActiveKey] = useState<AccessKey | null>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAppReady, setIsAppReady] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState<string>('');
-  const [errorLog, setErrorLog] = useState<{ message: string; type: 'error' | 'warning' } | null>(null);
+  
+  const [activeView, setActiveView] = useState<'document' | 'selfie'>('document');
   
   const [baseImage, setBaseImage] = useState<string | null>(null);
+  const [photoReplaceImage, setPhotoReplaceImage] = useState<string | null>(null);
+  const [generateSelfieMode, setGenerateSelfieMode] = useState<boolean>(false);
+  const [canvasImage, setCanvasImage] = useState<string | null>(null);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [zoom, setZoom] = useState(100);
-  
-  const [generationHistory, setGenerationHistory] = useState<HistoryEntry[]>([]);
-  const [canvasImage, setCanvasImage] = useState<string | null>(null);
-  
-  const [options] = useState<ProcessingOptions>({ forensicStealth: true, metadataStripping: true });
-
-  // ATOMIC LOCK: Synchronous guard against concurrent execution
-  const isProcessingRef = useRef<boolean>(false);
+  const [bridgeLogs, setBridgeLogs] = useState<string[]>([]);
+  const [errorLog, setErrorLog] = useState<{ message: string; type: 'error' | 'warning' } | null>(null);
 
   const [request, setRequest] = useState<ModificationRequest>({
     textReplacements: [{ key: '', value: '' }],
-    instructions: `[ SYSTEM MANDATE: FORENSIC-ACCURATE RASTER SYNTHESIS ]
-
-PHASE 1: ABSOLUTE BASE PRESERVATION
-
-PIXEL INTEGRITY: Maintain exact 1:1 pixel parity, original aspect ratio, and native sensor noise characteristics. No resampling artifacts.
-
-GEOMETRIC FIDELITY: Preserve all document curvature, perspective skew, lens distortion, substrate warping, and edge deformation exactly as observed.
-
-SECURITY ARCHITECTURE LOCK: Retain all holographic guilloché patterns, microtext, spectral line work, ghost imagery, embossing depth, and UV-reactive ink behavior with zero structural or positional deviation.
-
-PHASE 2: NEURAL INK & TYPOGRAPHY INTEGRATION
-
-FORENSIC FONT CLONING: Perform stroke-accurate typographic synthesis. Match font anatomy, stroke-width variance, kerning behavior, pressure irregularities, and weight-to-pixel ratios at a forensic level.
-
-INK–SUBSTRATE INTERACTION: Replicate real ink behavior, including sub-pixel feathering, capillary bleed into paper fibers, tonal falloff, and uneven absorption.
-
-PHASE 3: PHOTOGRAPHIC REALISM CONSTRAINTS
-
-TONAL DISCIPLINE: Avoid artificial or high-contrast rendering. Match realistic iPhone-style imaging—soft dynamic range, natural highlights, gentle shadow roll-off, no crushed blacks or clipped whites.
-
-CAMERA AUTHENTICITY: Apply true-to-life mobile sensor grain, optical softness, and subtle compression artifacts consistent with a high-end iPhone capture.
-
-QUALITY STANDARD: Output must be extremely high resolution and visually pristine, while remaining photorealistic and non-clinical.
-
-PHASE 4: FRAMING & COMPOSITION CONTROL
-
-DOCUMENT VISIBILITY GUARANTEE: The entire document must remain fully in-frame at all times.
-
-FAILSAFE RULE: If any edge risks cropping or exiting the frame, automatically zoom out until the complete document is visible with safe margins on all sides. No exceptions.
-
-FINAL OUTPUT DIRECTIVE
-
-RENDER: Produce a single, unified raster image.
-
-END STATE: The result must read as one authentic, unedited real-world photograph—indistinguishable from a genuine iPhone capture under casual or forensic inspection.`,
-    thinkingMode: false
+    instructions: `Replace the photo on the document with the provided face image.`,
+    thinkingMode: false,
+    aspectRatio: "1:1"
   });
 
-  const ADMIN_SECRET = 'adminds1';
-  const sequenceBuffer = useRef<string>('');
+  useEffect(() => {
+    // When switching to selfie view, force selfie mode
+    if (activeView === 'selfie') {
+      setGenerateSelfieMode(true);
+      setRequest(prev => ({
+        ...prev,
+        instructions: "Generate a high-quality selfie of a person holding this identification document. Ensure the document is clearly visible and the person's face matches the document photo."
+      }));
+    } else {
+      setGenerateSelfieMode(false);
+      setRequest(prev => ({
+        ...prev,
+        instructions: "Replace the photo on the document with the provided face image."
+      }));
+    }
+  }, [activeView]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.length === 1) {
-        sequenceBuffer.current += e.key.toLowerCase();
-        if (sequenceBuffer.current.endsWith(ADMIN_SECRET)) {
-          setIsAdminOpen(true);
-          sequenceBuffer.current = '';
-        }
-        if (sequenceBuffer.current.length > 20) sequenceBuffer.current = sequenceBuffer.current.slice(-10);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Background cleanup to avoid blocking initial render
+    setTimeout(() => {
+      cleanupExpiredData();
+    }, 5000);
   }, []);
 
   useEffect(() => {
@@ -96,176 +75,274 @@ END STATE: The result must read as one authentic, unedited real-world photograph
     }
   }, [cooldown]);
 
-  useEffect(() => {
-    const boot = async () => {
-      try {
-        await cleanupExpiredData();
-        const saved = sessionStorage.getItem('ds_active_session');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const valid = await validateKey(parsed.key);
-          if (valid) {
-            setActiveKey(valid);
-            loadUserHistory(valid.id);
-          }
-        }
-      } catch (e) {}
-    };
-    boot();
-  }, []);
-
-  const loadUserHistory = async (keyId: string) => {
-    try {
-      const history = await db.getHistory(keyId);
-      setGenerationHistory(history);
-    } catch (e) {}
-  };
-
-  useEffect(() => {
-    if (!activeKey) return;
-    const interval = setInterval(() => {
-      const remaining = formatTimeRemaining(activeKey.expiresAt);
-      setTimeRemaining(remaining);
-      if (remaining === 'SIGNAL TERMINATED') {
-        sessionStorage.removeItem('ds_active_session');
-        setActiveKey(null);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [activeKey]);
-
-  const onUnlock = (key: AccessKey) => {
+  const handleUnlock = (key: AccessKey) => {
     setActiveKey(key);
     sessionStorage.setItem('ds_active_session', JSON.stringify(key));
-    loadUserHistory(key.id);
+  };
+
+  const handleAdminAccess = () => {
+    setIsAdminOpen(true);
+  };
+
+  const handleLogout = () => {
+    setActiveKey(null);
+    sessionStorage.removeItem('ds_active_session');
   };
 
   const handleSynthesize = useCallback(async () => {
-    // 1. ATOMIC GUARD (Synchronous check of ref and states)
-    if (isProcessingRef.current || isLoading || cooldown > 0) {
-      console.warn("SYNTH_MUTEX: Overlapping request blocked.");
+    if (!activeKey || isLoading || cooldown > 0) return;
+
+    if (!baseImage) {
+      setErrorLog({ message: "UPLOAD BASE DOCUMENT FIRST", type: 'warning' });
       return;
     }
 
-    if (!baseImage && !canvasImage) {
-      setErrorLog({ message: "Source document missing.", type: 'warning' });
-      return;
-    }
-    if (!activeKey) return;
-
-    // 2. IMMEDIATE LOCK ACQUISITION
-    isProcessingRef.current = true;
     setIsLoading(true);
     setErrorLog(null);
-    console.log("SYNTH_PROTOCOL: Initiating single request sequence...");
+    setBridgeLogs(["[SYSTEM] INITIALIZING SYNTHESIS CORE..."]);
 
     try {
-      // 3. LICENSE VERIFICATION
-      const verify = await validateKey(activeKey.key);
-      if (!verify) throw new Error("Operational license invalidated.");
-
-      const result = await processDocument(canvasImage || baseImage, request, options);
+      const result = await processDocument(
+        baseImage, 
+        generateSelfieMode, 
+        photoReplaceImage, 
+        request, 
+        { forensicStealth: true, metadataStripping: true }
+      );
       
+      if (result.logs) setBridgeLogs(result.logs);
+      
+      if (result.quotaError) {
+        setErrorLog({ 
+          message: "QUOTA EXCEEDED: PLEASE CONNECT A PERSONAL API KEY IN THE ADMIN PANEL TO BYPASS LIMITS.", 
+          type: 'error' 
+        });
+        return;
+      }
+
       if (result.imageUrl) {
         setCanvasImage(result.imageUrl);
         const entry: HistoryEntry = {
           id: Math.random().toString(36).substring(2, 11),
-          keyId: activeKey.id, imageUrl: result.imageUrl, timestamp: Date.now(),
-          prompt: request.instructions, textReplacements: [...request.textReplacements]
+          userId: 'user',
+          keyId: activeKey.id, 
+          imageUrl: result.imageUrl, 
+          timestamp: Date.now(),
+          prompt: request.instructions, 
+          textReplacements: [...request.textReplacements]
         };
         await db.saveHistory(entry);
-        setGenerationHistory(prev => [...prev, entry]);
-        setCooldown(30); // Nominal recalibration
+        setCooldown(30);
       } else {
-        if (result.quotaError) {
-          setCooldown(60); // Heavy recalibration for 429
-          setErrorLog({ message: "QUOTA EXHAUSTED: Model limit is 0 for this key. Use a Paid API key from AI Studio.", type: 'error' });
-        } else {
-          setErrorLog({ message: result.thinking || "Synthesis failed.", type: 'error' });
-        }
+        setErrorLog({ message: result.logs?.[result.logs.length - 1] || "SYNTHESIS FAILED", type: 'error' });
       }
     } catch (err: any) {
-      setErrorLog({ message: err.message || "Synthesis error.", type: 'error' });
+      setErrorLog({ message: err.message || "CORE EXECUTION ERROR", type: 'error' });
     } finally {
-      // 4. LOCK RELEASE
       setIsLoading(false);
-      isProcessingRef.current = false;
     }
-  }, [baseImage, canvasImage, activeKey, request, options, cooldown, isLoading]);
+  }, [baseImage, generateSelfieMode, photoReplaceImage, request, cooldown, isLoading, activeKey]);
 
-  const renderMainContent = () => {
-    if (!activeKey) return <AccessKeyLock onUnlock={onUnlock} />;
-    if (!isAppReady) return <LoadingScreen onComplete={() => setIsAppReady(true)} />;
-
+  if (isAdminOpen) {
     return (
-      <div className="flex h-screen w-screen bg-[#050508] text-white overflow-hidden fade-in">
-        <div className="w-[340px] flex-shrink-0 border-r border-red-900/10 flex flex-col bg-[#0a0a0c] glass-panel relative z-40">
-          <header className="p-6 border-b border-red-900/10">
-            <h1 className="mono text-2xl font-bold tracking-tighter text-white">DOCUSYNTH <span className="text-red-600">PRO</span></h1>
-            <div className="text-[8px] mono text-red-500 font-bold tracking-[0.3em] mt-1 uppercase">{timeRemaining}</div>
-          </header>
+      <div className="relative">
+        <button 
+          onClick={() => setIsAdminOpen(false)}
+          className="fixed top-6 right-6 z-[100] px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-mono transition-all text-white"
+        >
+          EXIT ADMIN
+        </button>
+        <AdminPanel />
+      </div>
+    );
+  }
+
+  if (!activeKey) {
+    return <AccessKeyLock onUnlock={handleUnlock} onAdminAccess={handleAdminAccess} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#050508] text-zinc-300 font-sans selection:bg-red-500/30 selection:text-red-500 overflow-hidden flex flex-col">
+      {/* Top Navigation */}
+      <nav className="h-20 border-b border-zinc-900 bg-black/80 backdrop-blur-md px-8 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/20">
+              <Shield className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-white tracking-tighter text-xl uppercase">DocuSynth</span>
+          </div>
           
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-            <section>
-              <input type="file" accept="image/*" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = (ev) => { 
-                    const data = ev.target?.result as string;
-                    setBaseImage(data); setCanvasImage(data); 
-                  };
-                  reader.readAsDataURL(file);
-                }
-              }} className="hidden" id="doc-upload" />
-              <label htmlFor="doc-upload" className="group block border border-red-900/20 p-6 rounded-2xl text-center bg-red-900/5 hover:bg-red-900/10 hover:border-red-600/30 cursor-pointer transition-all">
-                <div className="mono text-[9px] text-gray-400 uppercase tracking-widest font-bold group-hover:text-red-500">LOAD SOURCE DOCUMENT</div>
-              </label>
-            </section>
-            <section>
-              <label className="text-[9px] mono text-gray-500 uppercase block mb-2 font-bold tracking-widest">Synthesis Directives</label>
-              <textarea value={request.instructions} onChange={(e) => setRequest({...request, instructions: e.target.value})} className="w-full h-80 input-dark p-4 text-[10px] mono rounded-xl resize-none text-gray-400 focus:text-white leading-relaxed" spellCheck="false" />
-            </section>
+          <div className="h-6 w-px bg-zinc-800 mx-2 hidden md:block" />
+          
+          <div className="flex items-center bg-zinc-900/50 p-1 rounded-xl border border-zinc-800">
+            <button 
+              onClick={() => setActiveView('document')}
+              className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'document' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
+            >
+              Document Synthesis
+            </button>
+            <button 
+              onClick={() => setActiveView('selfie')}
+              className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'selfie' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
+            >
+              Selfie Synthesis
+            </button>
           </div>
         </div>
 
-        <main className="flex-1 relative flex flex-col min-w-0">
-          <div className="h-14 border-b border-red-900/10 flex items-center justify-between px-6 bg-[#0a0a0c]/80 backdrop-blur-md z-30">
-            <div className="flex items-center gap-4">
-              <button onClick={() => setIsHistoryOpen(true)} className="px-3 py-1.5 bg-red-900/5 border border-red-900/20 rounded-lg mono text-[9px] text-red-500 font-bold uppercase tracking-widest">ARCHIVES ({generationHistory.length})</button>
+        <div className="flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            SESSION: {formatTimeRemaining(activeKey.expiresAt)}
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsHistoryOpen(true)}
+              className="p-2.5 hover:bg-zinc-900 rounded-xl transition-colors text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800"
+              title="History"
+            >
+              <History className="w-5 h-5" />
+            </button>
+            <div className="h-6 w-px bg-zinc-800 mx-1" />
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition-all border border-zinc-800"
+            >
+              <LogOut className="w-4 h-4" />
+              LOGOUT
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="flex-1 flex p-8 gap-8 overflow-hidden">
+        {/* Left Sidebar: Uploads */}
+        <aside className="w-80 flex-shrink-0 flex flex-col gap-6">
+          <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 space-y-6">
+            <h3 className="mono text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em]">Source Assets</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <input type="file" accept="image/*" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { 
+                      const data = ev.target?.result as string;
+                      setBaseImage(data); setCanvasImage(data); 
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }} className="hidden" id="doc-upload" />
+                <label htmlFor="doc-upload" className="group block bg-zinc-900/50 border border-zinc-800 p-6 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-2xl">
+                  <div className="mono text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2">
+                    {activeView === 'document' ? 'Main Document' : 'ID Document'}
+                  </div>
+                  {baseImage ? <div className="text-[9px] mono text-red-500 font-black uppercase">Loaded</div> : <div className="text-[9px] mono text-zinc-700 italic">Required</div>}
+                </label>
+              </div>
+
+              {activeView === 'document' && (
+                <div>
+                  <input type="file" accept="image/*" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => { 
+                        const data = ev.target?.result as string;
+                        setPhotoReplaceImage(data); 
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} className="hidden" id="face-upload" />
+                  <label htmlFor="face-upload" className="group block bg-zinc-900/50 border border-zinc-800 p-6 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-2xl">
+                    <div className="mono text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2">Face Source</div>
+                    {photoReplaceImage ? <div className="text-[9px] mono text-red-500 font-black uppercase">Ready</div> : <div className="text-[9px] mono text-zinc-700 italic">Optional</div>}
+                  </label>
+                </div>
+              )}
             </div>
-            <button onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `doc_${Date.now()}.png`; a.click(); } }} disabled={!canvasImage} className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded-xl mono text-[10px] text-white font-bold uppercase tracking-[0.2em] disabled:opacity-20 transition-all shadow-lg shadow-red-950/20">Download</button>
+          </div>
+
+          <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col">
+            <h3 className="mono text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em] mb-4">System Logs</h3>
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+              {bridgeLogs.map((log, i) => (
+                <div key={i} className="mono text-[9px] text-zinc-500 leading-tight">
+                  <span className="text-red-500/40 mr-2">{'>'}</span>{log}
+                </div>
+              ))}
+              {bridgeLogs.length === 0 && <div className="text-[9px] mono text-zinc-700 italic">Standby...</div>}
+            </div>
+          </div>
+        </aside>
+
+        {/* Center: Editor */}
+        <main className="flex-1 flex flex-col gap-6 min-w-0">
+          <div className="h-20 bg-zinc-900/30 border border-zinc-800 px-8 flex items-center justify-between rounded-3xl">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+                <Activity className="w-3 h-3" /> CORE STATUS: <span className="text-red-500 font-bold">READY</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `synth_${Date.now()}.png`; a.click(); } }} 
+              disabled={!canvasImage} 
+              className="px-8 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:pointer-events-none rounded-xl mono text-[10px] text-white font-black uppercase tracking-widest transition-all shadow-lg shadow-red-600/20"
+            >
+              Download Result
+            </button>
           </div>
           <EditorCanvas imageUrl={canvasImage} isLoading={isLoading} zoom={zoom} setZoom={setZoom} />
         </main>
 
+        {/* Right Sidebar: Controls */}
         <ControlPanel 
           onSynthesize={handleSynthesize} 
           isLoading={isLoading} 
           cooldown={cooldown}
           textReplacements={request.textReplacements} 
           setTextReplacements={(r) => setRequest({...request, textReplacements: r})}
-          thinkingMode={request.thinkingMode}
-          setThinkingMode={(m) => setRequest({...request, thinkingMode: m})}
+          instructions={request.instructions}
+          setInstructions={(i) => setRequest({...request, instructions: i})}
+          aspectRatio={request.aspectRatio}
+          setAspectRatio={(ar) => setRequest({...request, aspectRatio: ar})}
         />
-        
-        {isHistoryOpen && <HistoryPanel history={generationHistory} onClose={() => setIsHistoryOpen(false)} onRestore={(entry) => { setCanvasImage(entry.imageUrl); setRequest({...request, textReplacements: entry.textReplacements, instructions: entry.prompt}); setIsHistoryOpen(false); }} />}
       </div>
-    );
-  };
 
-  return (
-    <>
-      {errorLog && (
-        <div className="fixed top-6 right-6 z-[2000] flex items-center gap-4 bg-[#0a0a0c] border border-red-600/50 p-5 rounded-2xl shadow-2xl animate-slide-in-right glass-panel max-w-md">
-          <div className={`w-2 h-2 rounded-full ${errorLog.type === 'error' ? 'bg-red-600 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'}`}></div>
-          <p className="flex-1 mono text-[11px] text-gray-300 uppercase leading-relaxed">{errorLog.message}</p>
-          <button onClick={() => setErrorLog(null)} className="text-gray-500 hover:text-white">✕</button>
-        </div>
-      )}
-      {renderMainContent()}
-      {isAdminOpen && <AdminPanel onClose={() => setIsAdminOpen(false)} />}
-    </>
+      <AnimatePresence>
+        {isHistoryOpen && (
+          <HistoryPanel 
+            onClose={() => setIsHistoryOpen(false)} 
+            keyId={activeKey.id}
+            onRestore={(entry) => { 
+              setCanvasImage(entry.imageUrl); 
+              setRequest({...request, textReplacements: entry.textReplacements, instructions: entry.prompt}); 
+              setIsHistoryOpen(false); 
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {errorLog && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[2000] flex items-center gap-4 bg-zinc-900 border border-red-500/40 p-4 rounded-xl shadow-2xl max-w-md"
+          >
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className="mono text-[10px] text-zinc-300 uppercase leading-relaxed font-bold tracking-tight">{errorLog.message}</p>
+            <button onClick={() => setErrorLog(null)} className="text-zinc-500 hover:text-white transition-colors ml-2">✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 

@@ -1,205 +1,239 @@
 
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  limit, 
+  deleteDoc,
+  getDocFromServer
+} from 'firebase/firestore';
+import { db as firestore } from '../firebase';
 import { AccessKey, HistoryEntry } from '../types';
-import { supabase } from './supabase';
 
 /**
- * AUTH SERVICE: RESILIENT PERSISTENCE LAYER
- * Optimized for hybrid Supabase/Local storage.
+ * AUTH SERVICE: LICENSE-KEY ARCHITECTURE
  */
 
-const parseTimestamp = (val: any): number => {
-  if (!val) return Date.now();
-  if (typeof val === 'number') return val;
-  const d = new Date(val).getTime();
-  return isNaN(d) ? Date.now() : d;
+const compressImage = (base64Str: string, maxWidth = 800, quality = 0.6): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = (maxWidth / width) * height;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+      }
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64Str);
+    img.src = base64Str;
+  });
 };
 
-const localVault = {
-  keys: 'ds_local_keys',
-  history: 'ds_local_history',
-  settings: 'ds_local_settings'
-};
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
 
-const getLocal = <T>(key: string, fallback: T): T => {
-  try {
-    const val = localStorage.getItem(key);
-    return val ? JSON.parse(val) : fallback;
-  } catch { return fallback; }
-};
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+}
 
-const setLocal = (key: string, val: any) => {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-};
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export const db = {
   async getSettings(id: string): Promise<string> {
     try {
-      const { data, error } = await supabase.from('ds_settings').select('value').eq('id', id).maybeSingle();
-      if (error) throw error;
-      return data?.value || '';
-    } catch {
-      const settings = getLocal<Record<string, string>>(localVault.settings, {});
-      return settings[id] || '';
+      const docRef = doc(firestore, 'settings', id);
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists() ? docSnap.data().value : '';
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, `settings/${id}`);
+      return '';
     }
   },
 
   async setSettings(id: string, value: string): Promise<void> {
-    const settings = getLocal<Record<string, string>>(localVault.settings, {});
-    settings[id] = value;
-    setLocal(localVault.settings, settings);
     try {
-      await supabase.from('ds_settings').upsert({ id, value, updated_at: new Date().toISOString() });
-    } catch (e) { console.error("Settings Sync Failure:", e); }
+      const docRef = doc(firestore, 'settings', id);
+      await setDoc(docRef, { id, value, updatedAt: Date.now() }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `settings/${id}`);
+    }
   },
 
   async getKeys(): Promise<AccessKey[]> {
     try {
-      const { data, error } = await supabase.from('ds_access_keys').select('*');
-      if (error) throw error;
-      
-      const mapped = (data || []).map(k => ({
-        id: k.id,
-        key: k.key,
-        duration: k.duration || '7day',
-        durationMs: k.duration_ms || 604800000,
-        createdAt: parseTimestamp(k.created_at),
-        activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined,
-        expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined,
-        revoked: !!k.revoked
-      }));
-      
-      setLocal(localVault.keys, mapped);
-      return mapped;
+      const q = query(collection(firestore, 'access_keys'));
+      const querySnapshot = await getDocs(q);
+      const keys = querySnapshot.docs.map(doc => doc.data() as AccessKey);
+      return keys.sort((a, b) => b.createdAt - a.createdAt);
     } catch (e) {
-      console.warn("Supabase Unreachable: Falling back to Local Vault.");
-      return getLocal<AccessKey[]>(localVault.keys, []);
+      handleFirestoreError(e, OperationType.LIST, 'access_keys');
+      return [];
     }
   },
 
-  async saveKeys(keys: AccessKey[]): Promise<void> {
-    setLocal(localVault.keys, keys);
+  async updateKey(key: AccessKey): Promise<void> {
     try {
-      const dbKeys = keys.map(k => ({
-        id: k.id,
-        key: k.key,
-        duration: k.duration,
-        duration_ms: k.durationMs,
-        created_at: new Date(k.createdAt).toISOString(),
-        activated_at: k.activatedAt ? new Date(k.activatedAt).toISOString() : null,
-        expires_at: k.expiresAt ? new Date(k.expiresAt).toISOString() : null,
-        revoked: k.revoked
-      }));
-      await supabase.from('ds_access_keys').upsert(dbKeys);
-    } catch (e) { console.error("Key Sync Failure:", e); }
+      const docRef = doc(firestore, 'access_keys', key.id);
+      await updateDoc(docRef, { ...key });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `access_keys/${key.id}`);
+    }
   },
 
   async getHistory(keyId?: string): Promise<HistoryEntry[]> {
     try {
-      let query = supabase.from('ds_history').select('*');
-      if (keyId) query = query.eq('key_id', keyId);
-      const { data, error } = await query;
-      if (error) throw error;
+      let q = query(collection(firestore, 'history'));
+      if (keyId) q = query(q, where('keyId', '==', keyId));
       
-      return (data || []).map(h => ({
-        id: h.id,
-        keyId: h.key_id,
-        imageUrl: h.image_url,
-        timestamp: parseTimestamp(h.timestamp),
-        prompt: h.prompt,
-        textReplacements: h.text_replacements || []
-      }));
-    } catch {
-      const local = getLocal<HistoryEntry[]>(localVault.history, []);
-      return keyId ? local.filter(h => h.keyId === keyId) : local;
+      const querySnapshot = await getDocs(q);
+      const history = querySnapshot.docs.map(doc => doc.data() as HistoryEntry);
+      return history.sort((a, b) => b.timestamp - a.timestamp);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'history');
+      return [];
     }
   },
 
   async saveHistory(entry: HistoryEntry): Promise<void> {
-    const local = getLocal<HistoryEntry[]>(localVault.history, []);
-    setLocal(localVault.history, [...local, entry]);
     try {
-      await supabase.from('ds_history').insert([{
-        id: entry.id,
-        key_id: entry.keyId,
-        image_url: entry.imageUrl,
-        timestamp: new Date(entry.timestamp).toISOString(),
-        prompt: entry.prompt,
-        text_replacements: entry.textReplacements
-      }]);
-    } catch {}
+      // Compress image if it's potentially too large for Firestore (1MB limit)
+      if (entry.imageUrl && entry.imageUrl.length > 500000) {
+        entry.imageUrl = await compressImage(entry.imageUrl);
+      }
+      const docRef = doc(firestore, 'history', entry.id);
+      await setDoc(docRef, entry);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `history/${entry.id}`);
+    }
   }
 };
 
 export const validateKey = async (keyString: string): Promise<AccessKey | null> => {
-  if (keyString === 'DS-DEV-ROOT') {
-    return {
-      id: 'root', key: 'DS-DEV-ROOT', duration: '1month', durationMs: 999999999,
-      createdAt: Date.now(), activatedAt: Date.now(), expiresAt: Date.now() + 999999999, revoked: false
-    };
-  }
-
   try {
-    const { data: keys, error } = await supabase.from('ds_access_keys').select('*').eq('key', keyString).eq('revoked', false).limit(1);
-    if (error || !keys || keys.length === 0) throw new Error("Key not found in Cloud");
-    
-    const k = keys[0];
-    const key: AccessKey = {
-      id: k.id,
-      key: k.key,
-      duration: k.duration,
-      durationMs: k.duration_ms,
-      createdAt: parseTimestamp(k.created_at),
-      activatedAt: k.activated_at ? parseTimestamp(k.activated_at) : undefined,
-      expiresAt: k.expires_at ? parseTimestamp(k.expires_at) : undefined,
-      revoked: !!k.revoked
-    };
+    // Master Key Check
+    if (keyString === 'ADMINDS1') {
+      return {
+        id: 'admin',
+        key: 'ADMINDS1',
+        duration: '30day',
+        durationMs: 2592000000,
+        createdAt: Date.now(),
+        activatedAt: Date.now(),
+        expiresAt: Date.now() + 2592000000,
+        revoked: false
+      };
+    }
+
+    const q = query(
+      collection(firestore, 'access_keys'), 
+      where('key', '==', keyString), 
+      where('revoked', '==', false),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) return null;
+
+    const data = querySnapshot.docs[0].data() as AccessKey;
+    const key = { ...data };
+
+    if (key.expiresAt && Date.now() > key.expiresAt) return null;
 
     if (!key.activatedAt) {
       key.activatedAt = Date.now();
-      key.expiresAt = Date.now() + key.durationMs;
-      await supabase.from('ds_access_keys').update({
-        activated_at: new Date(key.activatedAt).toISOString(),
-        expires_at: new Date(key.expiresAt).toISOString()
-      }).eq('id', key.id);
+      key.expiresAt = Date.now() + (key.durationMs || 1800000);
+      await db.updateKey(key);
     }
-    return (key.expiresAt && Date.now() > key.expiresAt) ? null : key;
-  } catch {
-    const localKeys = getLocal<AccessKey[]>(localVault.keys, []);
-    const match = localKeys.find(k => k.key === keyString && !k.revoked);
-    if (!match) return null;
-    if (match.expiresAt && Date.now() > match.expiresAt) return null;
-    return match;
+
+    return key;
+  } catch (e) {
+    console.error("Validation Error:", e);
+    return null;
   }
 };
 
 export const generateKey = async (duration: AccessKey['duration']): Promise<AccessKey | null> => {
-  const durations = { '7day': 604800000, '14day': 1209600000, '1month': 2592000000 };
-  const newKey: AccessKey = {
-    id: Math.random().toString(36).substring(2),
-    key: `DS-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-    duration, durationMs: durations[duration], createdAt: Date.now(), revoked: false
+  const durations = { 
+    '30min': 1800000,
+    '7day': 604800000, 
+    '14day': 1209600000, 
+    '30day': 2592000000 
   };
-  
-  const local = getLocal<AccessKey[]>(localVault.keys, []);
-  setLocal(localVault.keys, [...local, newKey]);
+  const id = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  const newKeyData: AccessKey = {
+    id,
+    key: `DS-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+    duration,
+    durationMs: durations[duration],
+    createdAt: Date.now(),
+    revoked: false
+  };
 
   try {
-    await supabase.from('ds_access_keys').insert([{
-      id: newKey.id,
-      key: newKey.key,
-      duration: newKey.duration,
-      duration_ms: newKey.durationMs,
-      created_at: new Date(newKey.createdAt).toISOString(),
-      revoked: false
-    }]);
-  } catch {}
-  return newKey;
+    const docRef = doc(firestore, 'access_keys', id);
+    await setDoc(docRef, newKeyData);
+    return newKeyData;
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, `access_keys/${id}`);
+    return null;
+  }
+};
+
+export const revokeKey = async (id: string): Promise<void> => {
+  try {
+    const docRef = doc(firestore, 'access_keys', id);
+    await updateDoc(docRef, { revoked: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.UPDATE, `access_keys/${id}`);
+  }
 };
 
 export const formatTimeRemaining = (expiresAt?: number): string => {
   if (!expiresAt) return "PENDING ACTIVATION";
   const diff = expiresAt - Date.now();
   if (diff <= 0) return "SIGNAL TERMINATED";
+  
+  if (diff < 3600000) {
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return `${mins}M ${secs}S REMAINING`;
+  }
+  
   const hours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   return hours > 24 ? `${Math.floor(hours/24)}D ${hours%24}H REMAINING` : `${hours}H ${mins}M REMAINING`;
@@ -207,8 +241,16 @@ export const formatTimeRemaining = (expiresAt?: number): string => {
 
 export const cleanupExpiredData = async () => {
   try {
-    const keys = await db.getKeys();
-    const expiredIds = keys.filter(k => k.expiresAt && k.expiresAt < Date.now()).map(k => k.id);
-    if (expiredIds.length > 0) await supabase.from('ds_history').delete().in('key_id', expiredIds);
-  } catch {}
+    const q = query(collection(firestore, 'access_keys'), where('expiresAt', '<', Date.now()));
+    const querySnapshot = await getDocs(q);
+    for (const d of querySnapshot.docs) {
+      const historyQ = query(collection(firestore, 'history'), where('keyId', '==', d.id));
+      const historySnap = await getDocs(historyQ);
+      for (const h of historySnap.docs) {
+        await deleteDoc(doc(firestore, 'history', h.id));
+      }
+    }
+  } catch (e) {
+    console.warn("Cleanup cycle skipped:", e);
+  }
 };

@@ -1,5 +1,13 @@
-
 import React, { useRef, useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { 
+  Maximize2, 
+  Minimize2, 
+  Move, 
+  Image as ImageIcon,
+  Loader2,
+  Cpu
+} from 'lucide-react';
 
 interface EditorCanvasProps {
   imageUrl: string | null;
@@ -13,110 +21,115 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [synthProgress, setSynthProgress] = useState(0);
 
   useEffect(() => {
     if (imageUrl) setPosition({ x: 0, y: 0 });
   }, [imageUrl]);
 
-  useEffect(() => {
-    let interval: any;
-    if (isLoading) {
-      setSynthProgress(0);
-      interval = setInterval(() => {
-        setSynthProgress(prev => {
-          if (prev >= 98) return 98;
-          return prev + Math.random() * 2;
-        });
-      }, 150);
-    } else {
-      setSynthProgress(100);
-      const timeout = setTimeout(() => setSynthProgress(0), 500);
-      return () => clearTimeout(timeout);
-    }
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isLoading) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDragging || isLoading) return;
     setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 400));
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 500));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
 
   return (
     <div 
       ref={containerRef}
-      className="relative flex-1 bg-[#050508] overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
+      className="bg-zinc-900/30 border border-zinc-800 flex-1 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing select-none relative rounded-2xl"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={() => setIsDragging(false)}
       onMouseLeave={() => setIsDragging(false)}
     >
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
+      {/* Grid Background */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
            style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       
+      {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#050508]/80 backdrop-blur-xl">
-          <div className="w-64 flex flex-col gap-4 items-center">
-            <div className="relative w-full h-1 bg-red-900/20 rounded-full overflow-hidden">
-               <div className="h-full shimmer-bg transition-all duration-300" style={{ width: `${synthProgress}%` }}></div>
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <Loader2 className="w-12 h-12 text-red-500 animate-spin" />
+              <Cpu className="w-5 h-5 text-red-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>
-              <p className="mono text-[10px] tracking-[0.2em] text-red-600 uppercase font-bold">Processing Document...</p>
+            <div className="flex flex-col items-center">
+              <p className="mono text-[10px] tracking-[0.3em] text-red-500 uppercase font-black">Reconstructing Pixels</p>
+              <div className="flex gap-1 mt-2">
+                {[0, 1, 2].map(i => (
+                  <motion.div 
+                    key={i}
+                    className="w-1 h-1 bg-red-500 rounded-full"
+                    animate={{ opacity: [0.2, 1, 0.2] }}
+                    transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Image Display */}
       {imageUrl ? (
         <div 
-          className="relative transition-transform duration-75 ease-out"
+          className="relative transition-transform duration-100 ease-out"
           style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})` }}
         >
-          <div className="p-1 bg-red-900/5 border border-red-600/10 shadow-[0_0_80px_rgba(0,0,0,0.9)]">
-            <img src={imageUrl} alt="Preview" className="max-w-[85vw] max-h-[85vh] block object-contain shadow-2xl" draggable={false} />
+          <div className="p-1 bg-zinc-800 border border-zinc-700 shadow-2xl rounded-2xl overflow-hidden">
+            <img src={imageUrl} alt="Synthesis Preview" className="max-w-[85vw] max-h-[75vh] block object-contain" draggable={false} />
           </div>
-          <div className="absolute -top-3 -left-3 w-6 h-6 border-t border-l border-red-600/30"></div>
-          <div className="absolute -bottom-3 -right-3 w-6 h-6 border-b border-r border-red-600/30"></div>
+          
+          {/* Corner Accents */}
+          <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-red-500/40"></div>
+          <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-red-500/40"></div>
+          <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-red-500/40"></div>
+          <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-red-500/40"></div>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-6 opacity-20">
-          <div className="w-20 h-20 border border-red-900/20 flex items-center justify-center rounded-2xl bg-red-900/5">
-             <svg className="w-8 h-8 text-red-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          <div className="w-20 h-20 border border-zinc-800 flex items-center justify-center rounded-2xl bg-zinc-900/50">
+             <ImageIcon className="w-8 h-8 text-zinc-500" />
           </div>
-          <p className="mono text-[10px] uppercase tracking-[0.3em] text-red-700 font-bold">Waiting for Image</p>
+          <p className="mono text-[10px] uppercase tracking-[0.4em] text-zinc-500 font-bold">Awaiting Source Data</p>
         </div>
       )}
 
-      {/* Floating Zoom Controls */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1.5 bg-[#0a0a0c]/80 backdrop-blur-md border border-red-900/20 rounded-2xl z-20">
+      {/* Control Overlay */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1.5 bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl z-20 shadow-2xl">
         <button 
           onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
-          className="p-2 hover:bg-red-900/20 rounded-xl text-gray-400 hover:text-red-500 transition-all active:scale-90"
-          title="Zoom Out (Ctrl -)"
+          className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 hover:text-white transition-all active:scale-90"
+          title="Zoom Out"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+          <Minimize2 className="w-4 h-4" />
         </button>
-        <div className="w-px h-4 bg-red-900/20 mx-1"></div>
+        <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+        <div className="px-2 mono text-[10px] text-zinc-500 font-bold min-w-[3.5rem] text-center">
+          {zoom}%
+        </div>
+        <div className="w-px h-4 bg-zinc-800 mx-1"></div>
         <button 
           onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
-          className="p-2 hover:bg-red-900/20 rounded-xl text-gray-400 hover:text-red-500 transition-all active:scale-90"
-          title="Zoom In (Ctrl +)"
+          className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 hover:text-white transition-all active:scale-90"
+          title="Zoom In"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          <Maximize2 className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="absolute bottom-4 right-4 glass-panel px-3 py-1 rounded border-red-900/10 text-[9px] mono uppercase text-gray-700">
-        Engine <span className="text-red-700 font-bold">Active</span>
+      <div className="absolute bottom-6 right-6 px-3 py-1.5 bg-zinc-900/50 rounded-xl border border-zinc-800 text-[9px] mono uppercase text-zinc-500">
+        <span className="flex items-center gap-2">
+          <Move className="w-3 h-3" /> Drag to pan
+        </span>
       </div>
     </div>
   );
