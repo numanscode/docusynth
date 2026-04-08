@@ -162,53 +162,58 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-300 font-sans selection:bg-red-500/30 selection:text-red-500 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-[#020203] text-zinc-300 font-sans selection:bg-red-500/30 selection:text-red-500 flex flex-col relative">
+      {/* Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-red-900/5 rounded-full blur-[120px]" />
+      </div>
+
       {/* Top Navigation */}
-      <nav className="h-20 border-b border-zinc-900 bg-black/80 backdrop-blur-md px-8 flex items-center justify-between flex-shrink-0">
+      <nav className="h-20 border-b border-white/5 bg-black/40 backdrop-blur-xl px-8 flex items-center justify-between flex-shrink-0 z-50">
         <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 group cursor-pointer">
             <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/20">
               <Shield className="w-6 h-6 text-white" />
             </div>
-            <span className="font-bold text-white tracking-tighter text-xl uppercase">DocuSynth</span>
+            <span className="font-bold text-white tracking-tight text-xl uppercase">DocuSynth<span className="text-red-500">.PRO</span></span>
           </div>
           
-          <div className="h-6 w-px bg-zinc-800 mx-2 hidden md:block" />
+          <div className="h-6 w-px bg-white/5 mx-2 hidden md:block" />
           
-          <div className="flex items-center bg-zinc-900/50 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center bg-zinc-900/40 p-1 rounded-2xl border border-white/5 backdrop-blur-md">
             <button 
               onClick={() => setActiveView('document')}
-              className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'document' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
+              className={`px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'document' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
             >
-              Document Synthesis
+              Document
             </button>
             <button 
               onClick={() => setActiveView('selfie')}
-              className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'selfie' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
+              className={`px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${activeView === 'selfie' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-500 hover:text-white'}`}
             >
-              Selfie Synthesis
+              Selfie
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-zinc-500">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-zinc-500 bg-zinc-900/40 px-4 py-2 rounded-full border border-white/5">
+            <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
             SESSION: {formatTimeRemaining(activeKey.expiresAt)}
           </div>
           
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsHistoryOpen(true)}
-              className="p-2.5 hover:bg-zinc-900 rounded-xl transition-colors text-zinc-500 hover:text-white border border-transparent hover:border-zinc-800"
+              className="p-2.5 hover:bg-zinc-800/50 rounded-xl transition-colors text-zinc-500 hover:text-white border border-transparent hover:border-white/5"
               title="History"
             >
               <History className="w-5 h-5" />
             </button>
-            <div className="h-6 w-px bg-zinc-800 mx-1" />
+            <div className="h-6 w-px bg-white/5 mx-1" />
             <button 
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition-all border border-zinc-800"
+              className="flex items-center gap-2 px-6 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-white/5 rounded-xl text-[10px] font-bold text-zinc-400 hover:text-white transition-all active:scale-95"
             >
               <LogOut className="w-4 h-4" />
               LOGOUT
@@ -218,11 +223,11 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content */}
-      <div className="flex-1 flex p-8 gap-8 overflow-hidden">
+      <div className="flex-1 flex p-8 gap-8 overflow-hidden z-10">
         {/* Left Sidebar: Uploads */}
         <aside className="w-80 flex-shrink-0 flex flex-col gap-6">
-          <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 space-y-6">
-            <h3 className="mono text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em]">Source Assets</h3>
+          <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-[32px] p-6 space-y-6 shadow-xl">
+            <h3 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Source Assets</h3>
             
             <div className="space-y-4">
               <div>
@@ -237,11 +242,11 @@ const App: React.FC = () => {
                     reader.readAsDataURL(file);
                   }
                 }} className="hidden" id="doc-upload" />
-                <label htmlFor="doc-upload" className="group block bg-zinc-900/50 border border-zinc-800 p-6 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-2xl">
-                  <div className="mono text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2">
-                    {activeView === 'document' ? 'Main Document' : 'ID Document'}
+                <label htmlFor="doc-upload" className="group block bg-black/40 border border-white/5 p-8 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-[24px]">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2 transition-colors">
+                    {activeView === 'document' ? 'Document' : 'ID Document'}
                   </div>
-                  {baseImage ? <div className="text-[9px] mono text-red-500 font-black uppercase">Loaded</div> : <div className="text-[9px] mono text-zinc-700 italic">Required</div>}
+                  {baseImage ? <div className="text-[9px] text-red-500 font-bold uppercase tracking-widest">Loaded</div> : <div className="text-[9px] text-zinc-700 italic">Required</div>}
                 </label>
               </div>
 
@@ -258,42 +263,42 @@ const App: React.FC = () => {
                       reader.readAsDataURL(file);
                     }
                   }} className="hidden" id="face-upload" />
-                  <label htmlFor="face-upload" className="group block bg-zinc-900/50 border border-zinc-800 p-6 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-2xl">
-                    <div className="mono text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2">Face Source</div>
-                    {photoReplaceImage ? <div className="text-[9px] mono text-red-500 font-black uppercase">Ready</div> : <div className="text-[9px] mono text-zinc-700 italic">Optional</div>}
+                  <label htmlFor="face-upload" className="group block bg-black/40 border border-white/5 p-8 text-center hover:border-red-500/40 hover:bg-red-500/5 cursor-pointer transition-all rounded-[24px]">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold group-hover:text-white mb-2 transition-colors">Face Image</div>
+                    {photoReplaceImage ? <div className="text-[9px] text-red-500 font-bold uppercase tracking-widest">Ready</div> : <div className="text-[9px] text-zinc-700 italic">Optional</div>}
                   </label>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 flex-1 overflow-hidden flex flex-col">
-            <h3 className="mono text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em] mb-4">System Logs</h3>
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+          <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-[32px] p-6 flex-1 overflow-hidden flex flex-col shadow-xl">
+            <h3 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-4">System Logs</h3>
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
               {bridgeLogs.map((log, i) => (
                 <div key={i} className="mono text-[9px] text-zinc-500 leading-tight">
-                  <span className="text-red-500/40 mr-2">{'>'}</span>{log}
+                  <span className="text-red-500/40 mr-2 font-bold">{'>'}</span>{log}
                 </div>
               ))}
-              {bridgeLogs.length === 0 && <div className="text-[9px] mono text-zinc-700 italic">Standby...</div>}
+              {bridgeLogs.length === 0 && <div className="text-[9px] text-zinc-700 italic">Standby...</div>}
             </div>
           </div>
         </aside>
 
         {/* Center: Editor */}
         <main className="flex-1 flex flex-col gap-6 min-w-0">
-          <div className="h-20 bg-zinc-900/30 border border-zinc-800 px-8 flex items-center justify-between rounded-3xl">
+          <div className="h-20 bg-zinc-900/40 backdrop-blur-xl border border-white/5 px-8 flex items-center justify-between rounded-[32px] shadow-xl">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
-                <Activity className="w-3 h-3" /> CORE STATUS: <span className="text-red-500 font-bold">READY</span>
+                <Activity className="w-3 h-3 text-red-500" /> STATUS: <span className="text-red-500 font-bold">ONLINE</span>
               </div>
             </div>
             <button 
               onClick={() => { if (canvasImage) { const a = document.createElement('a'); a.href = canvasImage; a.download = `synth_${Date.now()}.png`; a.click(); } }} 
               disabled={!canvasImage} 
-              className="px-8 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:pointer-events-none rounded-xl mono text-[10px] text-white font-black uppercase tracking-widest transition-all shadow-lg shadow-red-600/20"
+              className="px-10 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-30 disabled:pointer-events-none rounded-2xl text-[10px] text-white font-bold uppercase tracking-widest transition-all shadow-xl shadow-red-600/20 active:scale-95"
             >
-              Download Result
+              Export
             </button>
           </div>
           <EditorCanvas imageUrl={canvasImage} isLoading={isLoading} zoom={zoom} setZoom={setZoom} />

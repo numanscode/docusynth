@@ -13,8 +13,38 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(compression());
+  app.use(express.json({ limit: '50mb' }));
 
-  // API routes can be added here if needed
+  // Secure Gemini API Proxy
+  app.post("/api/gemini/process", async (req, res) => {
+    try {
+      const { model, contents, config, userApiKey } = req.body;
+      const apiKey = userApiKey || process.env.GEMINI_API_KEY;
+
+      if (!apiKey) {
+        return res.status(401).json({ error: "API Key Missing" });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const genAI = new GoogleGenAI({ apiKey });
+      
+      // We use the low-level generateContent to handle both text and image tasks
+      const response = await genAI.models.generateContent({
+        model,
+        contents,
+        config
+      });
+
+      res.json(response);
+    } catch (error: any) {
+      console.error("[GEMINI PROXY ERROR]", error);
+      res.status(error.status || 500).json({ 
+        error: error.message || "Internal Server Error",
+        details: error.details || []
+      });
+    }
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
