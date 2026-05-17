@@ -150,6 +150,7 @@ export const validateKey = async (keyString: string): Promise<AccessKey | null> 
     if (keyString === 'ADMINDS1') {
       return {
         id: 'admin',
+        name: 'SYSTEM ADMIN',
         key: 'ADMINDS1',
         duration: '30day',
         durationMs: 2592000000,
@@ -187,7 +188,7 @@ export const validateKey = async (keyString: string): Promise<AccessKey | null> 
   }
 };
 
-export const generateKey = async (duration: AccessKey['duration']): Promise<AccessKey | null> => {
+export const generateKey = async (duration: AccessKey['duration'], name?: string): Promise<AccessKey | null> => {
   const durations = { 
     '30min': 1800000,
     '7day': 604800000, 
@@ -197,6 +198,7 @@ export const generateKey = async (duration: AccessKey['duration']): Promise<Acce
   const id = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
   const newKeyData: AccessKey = {
     id,
+    name: name || 'ANONYMOUS OPERATOR',
     key: `DS-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
     duration,
     durationMs: durations[duration],

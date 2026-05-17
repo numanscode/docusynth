@@ -26,8 +26,7 @@ const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newKeyDuration, setNewKeyDuration] = useState<AccessKey['duration']>('30min');
-  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-  const [isKeySaved, setIsKeySaved] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -42,9 +41,6 @@ const AdminPanel: React.FC = () => {
         expiredKeys: allKeys.filter(k => k.expiresAt && k.expiresAt <= Date.now()).length
       });
       
-      const savedKey = localStorage.getItem('gemini_api_key') || '';
-      setGeminiApiKey(savedKey);
-
       const ai = await testAiConnection();
       setAiStatus(ai);
     } catch (err) {
@@ -54,20 +50,17 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleSaveApiKey = () => {
-    localStorage.setItem('gemini_api_key', geminiApiKey);
-    setIsKeySaved(true);
-    setTimeout(() => setIsKeySaved(false), 2000);
-    fetchData(); // Re-test connection
-  };
-
   useEffect(() => {
     fetchData();
   }, []);
 
   const handleGenerateKey = async () => {
-    const key = await generateKey(newKeyDuration);
-    if (key) fetchData();
+    if (!newKeyName.trim()) return;
+    const key = await generateKey(newKeyDuration, newKeyName);
+    if (key) {
+      setNewKeyName('');
+      fetchData();
+    }
   };
 
   const handleRevokeKey = async (id: string) => {
@@ -82,62 +75,21 @@ const AdminPanel: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#020203] text-white p-4 md:p-8 font-sans selection:bg-red-500/30">
+    <div className="min-h-screen h-screen overflow-y-auto bg-[#08020a] text-white p-4 md:p-8 font-sans selection:bg-violet-500/30 custom-scrollbar">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* API Key Configuration */}
-        <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 p-8 rounded-[32px] shadow-2xl relative overflow-hidden">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-red-600/10 rounded-xl border border-red-500/20">
-                  <Key className="w-4 h-4 text-red-500" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-tight text-white">
-                    Gemini API Configuration
-                  </h2>
-                  <p className="text-zinc-500 text-[10px] uppercase tracking-widest">System Credentials</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                <div className="flex-1 relative group/input">
-                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                    <Shield className="w-3.5 h-3.5 text-zinc-600 group-focus-within/input:text-red-500 transition-colors" />
-                  </div>
-                  <input 
-                    type="password"
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                    placeholder="Enter Gemini API Key (sk-...)"
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-xs font-mono text-white focus:outline-none focus:border-red-500/50 focus:bg-black/60 transition-all"
-                  />
-                </div>
-                <button 
-                  onClick={handleSaveApiKey}
-                  className={`px-8 py-3.5 rounded-2xl text-[10px] font-bold tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl ${
-                    isKeySaved 
-                      ? 'bg-green-600 text-white' 
-                      : 'bg-red-600 hover:bg-red-500 text-white active:scale-95'
-                  }`}
-                >
-                  {isKeySaved ? <Check className="w-4 h-4" /> : <Database className="w-4 h-4" />}
-                  {isKeySaved ? 'SAVED' : 'UPDATE KEY'}
-                </button>
-              </div>
-            </div>
-            
-            <div className="hidden lg:block w-px h-20 bg-white/5" />
-            
-            <div className="hidden lg:flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono text-zinc-600 uppercase">Status:</span>
-                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${aiStatus?.success ? 'bg-green-500/5 border-green-500/20 text-green-500' : 'bg-red-500/5 border-red-500/20 text-red-500'}`}>
-                  <div className={`w-1 h-1 rounded-full ${aiStatus?.success ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className="text-[8px] font-bold uppercase">{aiStatus ? aiStatus.message : 'Checking...'}</span>
-                </div>
-              </div>
-            </div>
+        {/* Connection Status Summary (Simplified) */}
+        <div className="flex items-center justify-between pb-6 border-b border-white/5">
+          <div className="flex items-center gap-4">
+             <div className="p-3 bg-violet-600/10 rounded-2xl border border-violet-500/20">
+                <Database className="w-5 h-5 text-violet-500" />
+             </div>
+             <div>
+                <h2 className="text-lg font-[900] uppercase tracking-tighter text-white font-['Outfit']">System Terminal</h2>
+                <p className="text-zinc-500 text-[10px] uppercase tracking-widest leading-none mt-1">Authorized Access Only</p>
+             </div>
+          </div>
+          <div className="flex items-center gap-4">
+             {/* Status moved to bottom */}
           </div>
         </div>
 
@@ -145,11 +97,11 @@ const AdminPanel: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-white/5 pb-8">
           <div className="flex items-center gap-4">
             <div className="p-4 bg-zinc-900/50 rounded-[24px] border border-white/5 shadow-xl">
-              <Shield className="w-8 h-8 text-red-500" />
+              <Shield className="w-8 h-8 text-violet-500" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight uppercase text-white">Admin Dashboard</h1>
-              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">System Management</p>
+              <h1 className="text-3xl font-bold tracking-tight uppercase text-white">System Dashboard</h1>
+              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">Docusynth V6 Control Center</p>
             </div>
           </div>
           <button 
@@ -158,19 +110,19 @@ const AdminPanel: React.FC = () => {
             className="flex items-center gap-2 px-6 py-3 bg-zinc-900/50 hover:bg-zinc-800 border border-white/5 rounded-2xl text-[10px] font-bold tracking-widest transition-all active:scale-95 text-zinc-400 hover:text-white"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            REFRESH DATA
+            REFRESH MODULES
           </button>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { label: 'Total Generations', value: stats.totalGenerations, icon: Activity, color: 'text-white' },
-            { label: 'Active Keys', value: stats.activeKeys, icon: CheckCircle2, color: 'text-green-500' },
-            { label: 'Expired Keys', value: stats.expiredKeys, icon: XCircle, color: 'text-red-500' },
-            { label: 'System Latency', value: '24ms', icon: Database, color: 'text-red-500' }
+            { label: 'Processes', value: stats.totalGenerations, icon: Activity, color: 'text-white' },
+            { label: 'Active Sessions', value: stats.activeKeys, icon: CheckCircle2, color: 'text-green-500' },
+            { label: 'Depleted', value: stats.expiredKeys, icon: XCircle, color: 'text-zinc-600' },
+            { label: 'Latency', value: '18ms', icon: Database, color: 'text-violet-500' }
           ].map((stat, i) => (
-            <div key={i} className="bg-zinc-900/40 backdrop-blur-md border border-white/5 p-6 rounded-[28px] shadow-xl group hover:border-red-500/20 transition-all">
+            <div key={i} className="bg-zinc-900/40 backdrop-blur-md border border-white/5 p-6 rounded-[28px] shadow-xl group hover:border-violet-500/20 transition-all">
               <div className="flex items-center gap-2 text-zinc-500 text-[9px] uppercase tracking-widest mb-3">
                 <stat.icon className={`w-3 h-3 ${stat.color}`} /> {stat.label}
               </div>
@@ -183,17 +135,24 @@ const AdminPanel: React.FC = () => {
         <div className="bg-zinc-900/40 backdrop-blur-md border border-white/5 p-8 rounded-[32px] shadow-xl">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div>
-              <h2 className="text-xl font-bold mb-1 uppercase tracking-tight text-white">Generate Access Key</h2>
-              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">Create New Session Access</p>
-              <div className="mt-4 flex items-center gap-2 text-[9px] font-mono text-red-500/40 bg-red-500/5 px-3 py-1.5 rounded-full border border-red-500/10 w-fit">
-                <Shield className="w-3 h-3" /> MASTER BYPASS: ADMINDS1
+              <h2 className="text-xl font-bold mb-1 uppercase tracking-tight text-white">Initialize Token</h2>
+              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">New Operator Access</p>
+              <div className="mt-4 flex items-center gap-2 text-[9px] font-mono text-violet-500/40 bg-violet-500/5 px-3 py-1.5 rounded-full border border-violet-500/10 w-fit">
+                <Shield className="w-3 h-3" /> BYPASS: ADMINDS1
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+              <input 
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="OPERATOR NAME"
+                className="w-full sm:w-48 bg-black/40 border border-white/5 rounded-2xl px-6 py-3.5 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-violet-500/50 transition-all text-white placeholder:text-zinc-700"
+              />
               <select 
                 value={newKeyDuration}
                 onChange={(e) => setNewKeyDuration(e.target.value as any)}
-                className="w-full sm:w-48 bg-black/40 border border-white/5 rounded-2xl px-6 py-3.5 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-red-500/50 transition-all appearance-none text-zinc-400"
+                className="w-full sm:w-48 bg-black/40 border border-white/5 rounded-2xl px-6 py-3.5 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-violet-500/50 transition-all appearance-none text-zinc-400"
               >
                 <option value="30min">30 MINUTES</option>
                 <option value="7day">7 DAYS</option>
@@ -202,9 +161,9 @@ const AdminPanel: React.FC = () => {
               </select>
               <button 
                 onClick={handleGenerateKey}
-                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-red-600 hover:bg-red-500 rounded-2xl text-[10px] font-bold tracking-widest transition-all shadow-xl shadow-red-600/20 active:scale-95 text-white"
+                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-violet-600 hover:bg-violet-500 rounded-2xl text-[10px] font-bold tracking-widest transition-all shadow-xl shadow-violet-600/20 active:scale-95 text-white"
               >
-                <Plus className="w-4 h-4" /> GENERATE
+                <Plus className="w-4 h-4" /> GENERATE TOKEN
               </button>
             </div>
           </div>
@@ -214,18 +173,19 @@ const AdminPanel: React.FC = () => {
         <div className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-[32px] shadow-xl overflow-hidden">
           <div className="p-8 border-b border-white/5 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold uppercase tracking-tight text-white">Access Keys</h2>
-              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">Key Management</p>
+              <h2 className="text-xl font-bold uppercase tracking-tight text-white">Neural Tokens</h2>
+              <p className="text-zinc-500 text-[10px] uppercase tracking-widest">Access Management</p>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-black/40 text-zinc-500 text-[9px] uppercase tracking-widest border-b border-white/5">
-                  <th className="px-8 py-5 font-bold">Key</th>
+                  <th className="px-8 py-5 font-bold">Operator</th>
+                  <th className="px-8 py-5 font-bold">Token ID</th>
                   <th className="px-8 py-5 font-bold">Duration</th>
-                  <th className="px-8 py-5 font-bold">Status</th>
-                  <th className="px-8 py-5 font-bold">Created</th>
+                  <th className="px-8 py-5 font-bold">Neural State</th>
+                  <th className="px-8 py-5 font-bold">Initialized</th>
                   <th className="px-8 py-5 font-bold text-right">Actions</th>
                 </tr>
               </thead>
@@ -233,8 +193,14 @@ const AdminPanel: React.FC = () => {
                 {keys.map((key) => (
                   <tr key={key.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="px-8 py-5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{key.name || 'ANONYMOUS'}</span>
+                        <span className="text-[7px] text-zinc-600 font-mono mt-0.5">{key.id.substring(0, 8)}...</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
                       <div className="flex items-center gap-3">
-                        <code className="text-red-500 font-mono text-xs bg-red-500/5 px-3 py-1.5 rounded-lg border border-red-500/10 font-bold tracking-widest">
+                        <code className="text-violet-500 font-mono text-xs bg-violet-500/5 px-3 py-1.5 rounded-lg border border-violet-500/10 font-bold tracking-widest">
                           {key.key}
                         </code>
                         <button 
@@ -251,7 +217,7 @@ const AdminPanel: React.FC = () => {
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-2">
                         <div className={`w-1.5 h-1.5 rounded-full ${key.revoked ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
-                        <span className={`text-[10px] font-bold ${key.revoked ? 'text-red-500' : 'text-zinc-300'}`}>
+                        <span className={`text-[10px] font-bold uppercase ${key.revoked ? 'text-red-500' : 'text-zinc-300'}`}>
                           {key.revoked ? 'REVOKED' : formatTimeRemaining(key.expiresAt)}
                         </span>
                       </div>
@@ -266,7 +232,7 @@ const AdminPanel: React.FC = () => {
                         <button 
                           onClick={() => handleRevokeKey(key.id)}
                           className="p-2.5 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-all text-zinc-700"
-                          title="Revoke Key"
+                          title="Revoke Token"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -277,12 +243,40 @@ const AdminPanel: React.FC = () => {
                 {keys.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-8 py-20 text-center text-zinc-700 text-[10px] uppercase tracking-widest">
-                      No keys found
+                      Zero datasets found
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Global Connection Status Footer */}
+        <div className="pt-12 pb-4">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-2 text-zinc-800 text-[8px] font-black uppercase tracking-[0.5em]">
+              <Database className="w-2.5 h-2.5" />
+              Neural Backbone Connection
+            </div>
+            {aiStatus ? (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`flex items-center gap-3 px-6 py-2.5 rounded-full border bg-black/40 backdrop-blur-md shadow-2xl transition-all ${aiStatus.success ? 'border-green-500/10 text-green-500/60' : 'border-red-500/20 text-red-500/80'}`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${aiStatus.success ? 'bg-green-500/40 animate-pulse' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} />
+                <span className="text-[10px] font-[900] uppercase tracking-[0.2em] font-['Outfit']">
+                  {aiStatus.success ? 'SYSTEMS NOMINAL: ' : 'BRIDGE FAILURE: '}
+                  <span className="opacity-50">{aiStatus.message}</span>
+                </span>
+              </motion.div>
+            ) : (
+              <div className="flex items-center gap-3 px-6 py-2.5 rounded-full border border-white/5 bg-black/20 text-zinc-800">
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
+                <span className="text-[10px] font-[900] uppercase tracking-[0.2em] font-['Outfit'] text-zinc-800">SYNCING CORE...</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

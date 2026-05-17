@@ -3,19 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DocuSynth</title>
-    <meta name="description" content="Forensic-grade document synthesis and pixel reconstruction engine.">
+    <title>Docusynth V6</title>
+    <meta name="description" content="Premium AI document workstation platform by Docxman x Nxman.">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        violet: {
+                            50: '#fff0f7',
+                            100: '#ffe0f0',
+                            200: '#ffc2e1',
+                            300: '#ff94c9',
+                            400: '#ff57a7',
+                            500: '#ff0080',
+                            600: '#d9006c',
+                            700: '#b30059',
+                            800: '#8c0046',
+                            900: '#660033',
+                            950: '#3d001f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --accent: #ef4444;
-            --magenta: #dc2626;
-            --bg: #050508;
-            --card-bg: rgba(10, 10, 15, 0.8);
-            --card-border: rgba(239, 68, 68, 0.15);
+            --accent: #ff0080;
+            --magenta: #ff0080;
+            --neon-purple: #8000ff;
+            --bg: #08020a;
+            --card-bg: rgba(12, 4, 18, 0.85);
+            --card-border: rgba(255, 0, 128, 0.15);
         }
 
         body { 
@@ -24,8 +48,9 @@
             color: #e5e7eb; 
             margin: 0; 
             background-image: 
-                radial-gradient(circle at 50% -20%, rgba(239, 68, 68, 0.15), transparent 60%),
-                radial-gradient(circle at 0% 100%, rgba(220, 38, 38, 0.05), transparent 40%);
+                radial-gradient(circle at 50% -20%, rgba(255, 0, 128, 0.15), transparent 60%),
+                radial-gradient(circle at 0% 100%, rgba(128, 0, 255, 0.1), transparent 40%),
+                radial-gradient(circle at 100% 0%, rgba(255, 0, 200, 0.05), transparent 40%);
         }
 
         .mono { font-family: 'JetBrains Mono', monospace; }
@@ -33,80 +58,96 @@
         /* Dashboard Glassmorphism */
         .glass-card { 
             background: var(--card-bg); 
-            backdrop-filter: blur(24px) saturate(180%);
+            backdrop-filter: blur(32px) saturate(200%);
             border: 1px solid var(--card-border);
-            border-radius: 32px;
-            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.7);
+            border-radius: 40px;
+            box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.9);
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 0, 128, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 30px 80px -20px rgba(255, 0, 128, 0.2);
         }
 
         .glass-panel { 
-            background: rgba(8, 8, 11, 0.98); 
-            backdrop-filter: blur(40px);
+            background: rgba(6, 2, 8, 0.99); 
+            backdrop-filter: blur(60px);
         }
 
-        /* Metallic Text Styling */
+        /* Metallic Text Styling (Chrome effect from image) */
         .text-silver {
-            background: linear-gradient(180deg, #ffffff 0%, #d1d5db 45%, #9ca3af 100%);
+            background: linear-gradient(180deg, #ffffff 0%, #ffc0e0 45%, #d9006c 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.3));
-            font-weight: 800;
+            font-weight: 900;
+            filter: drop-shadow(0 0 10px rgba(255, 0, 128, 0.3));
         }
 
         .shimmer-bg { 
-            background: linear-gradient(90deg, #991b1b, #ef4444, #991b1b); 
+            background: linear-gradient(90deg, #d9006c, #ff0080, #d9006c); 
             background-size: 200% 100%; 
             animation: shimmer 3s infinite linear; 
         }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
-        /* Red Aura Glow */
+        /* Neon Aura Glow */
         .glow-aura {
             position: fixed;
-            top: -100px;
+            top: -150px;
             left: 50%;
             transform: translateX(-50%);
-            width: 1000px;
-            height: 300px;
-            background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.1), transparent 70%);
+            width: 1200px;
+            height: 400px;
+            background: radial-gradient(ellipse at center, rgba(255, 0, 128, 0.12), transparent 70%);
             pointer-events: none;
             z-index: 0;
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(239, 68, 68, 0.4); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 0, 128, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 128, 0.4); }
 
         .ds-input {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(239, 68, 68, 0.1);
-            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 0, 128, 0.1);
+            border-radius: 20px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             outline: none;
+            color: white;
         }
 
         .ds-input:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+            box-shadow: 0 0 25px rgba(255, 0, 128, 0.2);
         }
 
-        .btn-red {
-            background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+        .btn-violet {
+            background: linear-gradient(135deg, #ff0080 0%, #8000ff 100%);
             transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            box-shadow: 0 4px 20px -5px rgba(239, 68, 68, 0.5);
+            box-shadow: 0 8px 30px -5px rgba(255, 0, 128, 0.4);
             border: none;
-            border-radius: 16px;
+            border-radius: 20px;
+            font-weight: 900;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
         }
 
-        .btn-red:hover {
+        .btn-violet:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px -5px rgba(239, 68, 68, 0.6);
-            filter: brightness(1.1);
+            box-shadow: 0 15px 40px -5px rgba(255, 0, 128, 0.6);
+            filter: brightness(1.2);
+        }
+
+        .btn-violet:active {
+            transform: translateY(0);
         }
         
-        .fade-in { animation: fadeIn 1s cubic-bezier(0.2, 0, 0.2, 1); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.8s cubic-bezier(0.2, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
     </style>
     <script type="importmap">
 {
@@ -124,7 +165,7 @@
 }
 </script>
 </head>
-<body class="bg-[#020203]">
+<body class="bg-[#08020a]">
     <div class="glow-aura"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>

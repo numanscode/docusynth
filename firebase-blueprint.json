@@ -20,6 +20,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "name": { "type": "string", "description": "Associated user name" },
         "key": { "type": "string" },
         "duration": { "type": "string", "enum": ["30min", "7day", "14day", "30day"] },
         "durationMs": { "type": "number" },

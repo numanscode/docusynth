@@ -1,5 +1,8 @@
 {
-  "name": "DocuSynth",
-  "description": "Advanced AI-powered document processing and synthesis engine.",
-  "requestFramePermissions": []
+  "name": "DOCUSYNTH PRO",
+  "description": "Professional-grade AI document workstation platform by Docxman x Nxman. Secure synthesis, mockups, and forensic-grade restoration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

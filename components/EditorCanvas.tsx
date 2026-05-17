@@ -43,7 +43,7 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
   return (
     <div 
       ref={containerRef}
-      className="bg-zinc-900/30 border border-zinc-800 flex-1 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing select-none relative rounded-2xl"
+      className="w-full h-full bg-zinc-900/30 border border-zinc-800 overflow-hidden flex items-center justify-center cursor-grab active:cursor-grabbing select-none relative rounded-2xl"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={() => setIsDragging(false)}
@@ -56,18 +56,17 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
       {/* Loading Overlay */}
       {isLoading && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-6">
             <div className="relative">
-              <Loader2 className="w-12 h-12 text-red-500 animate-spin" />
-              <Cpu className="w-5 h-5 text-red-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              <Loader2 className="w-16 h-16 text-violet-500 animate-spin" />
             </div>
             <div className="flex flex-col items-center">
-              <p className="mono text-[10px] tracking-[0.3em] text-red-500 uppercase font-black">Reconstructing Pixels</p>
-              <div className="flex gap-1 mt-2">
+              <p className="text-sm tracking-[0.2em] text-white uppercase font-bold">Editing Image...</p>
+              <div className="flex gap-2 mt-4">
                 {[0, 1, 2].map(i => (
                   <motion.div 
                     key={i}
-                    className="w-1 h-1 bg-red-500 rounded-full"
+                    className="w-2 h-2 bg-violet-500 rounded-full"
                     animate={{ opacity: [0.2, 1, 0.2] }}
                     transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
                   />
@@ -84,51 +83,50 @@ const EditorCanvas: React.FC<EditorCanvasProps> = ({ imageUrl, isLoading, zoom, 
           className="relative transition-transform duration-100 ease-out"
           style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${zoom / 100})` }}
         >
-          <div className="p-1 bg-zinc-800 border border-zinc-700 shadow-2xl rounded-2xl overflow-hidden">
-            <img src={imageUrl} alt="Synthesis Preview" className="max-w-[85vw] max-h-[75vh] block object-contain" draggable={false} />
+          <div className="p-2 bg-zinc-800 border border-zinc-700 shadow-2xl rounded-2xl overflow-hidden">
+            <img src={imageUrl} alt="Result" className="max-w-[85vw] max-h-[75vh] block object-contain" draggable={false} />
           </div>
           
-          {/* Corner Accents */}
-          <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-red-500/40"></div>
-          <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-red-500/40"></div>
-          <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-red-500/40"></div>
-          <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-red-500/40"></div>
+          <div className="absolute -top-3 -left-3 w-6 h-6 border-t-2 border-l-2 border-violet-500/40"></div>
+          <div className="absolute -top-3 -right-3 w-6 h-6 border-t-2 border-r-2 border-violet-500/40"></div>
+          <div className="absolute -bottom-3 -left-3 w-6 h-6 border-b-2 border-l-2 border-violet-500/40"></div>
+          <div className="absolute -bottom-3 -right-3 w-6 h-6 border-b-2 border-r-2 border-violet-500/40"></div>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-6 opacity-20">
-          <div className="w-20 h-20 border border-zinc-800 flex items-center justify-center rounded-2xl bg-zinc-900/50">
-             <ImageIcon className="w-8 h-8 text-zinc-500" />
+        <div className="flex flex-col items-center gap-6 opacity-30">
+          <div className="w-24 h-24 border-2 border-dashed border-zinc-700 flex items-center justify-center rounded-3xl bg-zinc-900/50">
+             <ImageIcon className="w-10 h-10 text-zinc-500" />
           </div>
-          <p className="mono text-[10px] uppercase tracking-[0.4em] text-zinc-500 font-bold">Awaiting Source Data</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500 font-bold">No image selected</p>
         </div>
       )}
 
       {/* Control Overlay */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1.5 bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl z-20 shadow-2xl">
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 bg-zinc-900/90 backdrop-blur-xl border border-white/5 rounded-3xl z-20 shadow-3xl">
         <button 
           onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
-          className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 hover:text-white transition-all active:scale-90"
+          className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all active:scale-90"
           title="Zoom Out"
         >
-          <Minimize2 className="w-4 h-4" />
+          <Minimize2 className="w-5 h-5" />
         </button>
-        <div className="w-px h-4 bg-zinc-800 mx-1"></div>
-        <div className="px-2 mono text-[10px] text-zinc-500 font-bold min-w-[3.5rem] text-center">
+        <div className="w-px h-6 bg-white/10 mx-2"></div>
+        <div className="px-4 text-xs text-white font-bold min-w-[4rem] text-center">
           {zoom}%
         </div>
-        <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+        <div className="w-px h-6 bg-white/10 mx-2"></div>
         <button 
           onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
-          className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 hover:text-white transition-all active:scale-90"
+          className="p-3 hover:bg-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all active:scale-90"
           title="Zoom In"
         >
-          <Maximize2 className="w-4 h-4" />
+          <Maximize2 className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="absolute bottom-6 right-6 px-3 py-1.5 bg-zinc-900/50 rounded-xl border border-zinc-800 text-[9px] mono uppercase text-zinc-500">
+      <div className="absolute bottom-8 right-8 px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/5 text-[10px] uppercase text-zinc-500 font-bold tracking-wider hidden md:block">
         <span className="flex items-center gap-2">
-          <Move className="w-3 h-3" /> Drag to pan
+          <Move className="w-4 h-4" /> Drag to move
         </span>
       </div>
     </div>
