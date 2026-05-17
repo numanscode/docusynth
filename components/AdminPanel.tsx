@@ -84,7 +84,7 @@ const AdminPanel: React.FC = () => {
                 <Database className="w-5 h-5 text-violet-500" />
              </div>
              <div>
-                <h2 className="text-lg font-[900] uppercase tracking-tighter text-white font-['Outfit']">System Terminal</h2>
+                <h2 className="text-lg font-[900] uppercase tracking-tighter text-white">System Terminal</h2>
                 <p className="text-zinc-500 text-[10px] uppercase tracking-widest leading-none mt-1">Authorized Access Only</p>
              </div>
           </div>
@@ -266,7 +266,7 @@ const AdminPanel: React.FC = () => {
                 className={`flex items-center gap-3 px-6 py-2.5 rounded-full border bg-black/40 backdrop-blur-md shadow-2xl transition-all ${aiStatus.success ? 'border-green-500/10 text-green-500/60' : 'border-red-500/20 text-red-500/80'}`}
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${aiStatus.success ? 'bg-green-500/40 animate-pulse' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} />
-                <span className="text-[10px] font-[900] uppercase tracking-[0.2em] font-['Outfit']">
+                <span className="text-[10px] font-[900] uppercase tracking-[0.2em]">
                   {aiStatus.success ? 'SYSTEMS NOMINAL: ' : 'BRIDGE FAILURE: '}
                   <span className="opacity-50">{aiStatus.message}</span>
                 </span>
@@ -274,7 +274,7 @@ const AdminPanel: React.FC = () => {
             ) : (
               <div className="flex items-center gap-3 px-6 py-2.5 rounded-full border border-white/5 bg-black/20 text-zinc-800">
                 <div className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                <span className="text-[10px] font-[900] uppercase tracking-[0.2em] font-['Outfit'] text-zinc-800">SYNCING CORE...</span>
+                <span className="text-[10px] font-[900] uppercase tracking-[0.2em] text-zinc-800">SYNCING CORE...</span>
               </div>
             )}
           </div>

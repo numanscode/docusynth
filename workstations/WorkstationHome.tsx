@@ -89,7 +89,7 @@ const WorkstationHome: React.FC<WorkstationHomeProps> = ({ onSelectWorkstation, 
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-2xl font-[1000] tracking-tighter text-silver uppercase leading-[0.8] font-['Outfit'] italic">DOCUSYNTH</h1>
+            <h1 className="text-2xl font-[1000] tracking-tighter text-silver uppercase leading-[0.8] italic">DOCUSYNTH</h1>
             <div className="flex items-center gap-2 text-[8px] font-black text-violet-500/60 uppercase tracking-[0.3em] mt-1">
               <span>DOCXMAN x NXMAN</span>
               <div className="w-0.5 h-0.5 bg-violet-900 rounded-full" />
@@ -125,7 +125,7 @@ const WorkstationHome: React.FC<WorkstationHomeProps> = ({ onSelectWorkstation, 
           className="flex flex-col gap-1"
         >
           <span className="text-[10px] text-violet-500 font-black uppercase tracking-[0.4em] mb-1">Authorization Successful</span>
-          <h2 className="text-4xl md:text-5xl font-[900] text-white tracking-tighter uppercase font-['Outfit']">
+          <h2 className="text-4xl md:text-5xl font-[900] text-white tracking-tighter uppercase">
             Welcome, <span className="bg-gradient-to-r from-violet-400 to-violet-600 bg-clip-text text-transparent">{userName || 'OPERATOR'}</span>
           </h2>
           <div className="flex items-center gap-4 mt-2">

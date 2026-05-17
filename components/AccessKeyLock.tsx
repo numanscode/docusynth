@@ -60,7 +60,7 @@ const AccessKeyLock: React.FC<AccessKeyLockProps> = ({ onUnlock, onAdminAccess }
               <ShieldCheck className="w-8 h-8 text-violet-500" />
             </div>
             <div className="space-y-1">
-              <h1 className="text-4xl font-[1000] text-silver tracking-[-0.05em] uppercase font-['Outfit'] leading-[0.8] italic">DOCUSYNTH</h1>
+              <h1 className="text-4xl font-[1000] text-silver tracking-[-0.05em] uppercase leading-[0.8] italic">DOCUSYNTH</h1>
               <p className="text-zinc-500 text-[9px] font-black uppercase tracking-[0.4em] mt-2">Access Control System</p>
             </div>
           </div>

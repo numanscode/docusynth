@@ -67,9 +67,9 @@ const AiEditingWorkstation: React.FC<AiEditingWorkstationProps> = ({
               <Edit3 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-xs font-[900] text-white uppercase tracking-tighter font-['Outfit']">Image Editor</h2>
+              <h2 className="text-xs font-[900] text-white uppercase tracking-tighter">Image Editor</h2>
               <div className="flex items-center gap-2 text-[8px] font-bold text-zinc-500 uppercase tracking-widest leading-none">
-                <span className="text-violet-500 font-[900] tracking-tighter font-['Outfit'] uppercase">DOCXMAN x NXMAN</span>
+                <span className="text-violet-500 font-[900] tracking-tighter uppercase">DOCXMAN x NXMAN</span>
               </div>
             </div>
           </div>
@@ -100,7 +100,7 @@ const AiEditingWorkstation: React.FC<AiEditingWorkstationProps> = ({
           <div className="h-14 border-b border-white/5 px-4 md:px-8 flex items-center justify-between bg-zinc-900/10 shrink-0">
             <div className="flex items-center gap-2">
                <Activity className="w-3.5 h-3.5 text-violet-500/40" />
-               <span className="text-[10px] text-zinc-600 font-[900] uppercase tracking-tighter leading-none font-['Outfit']">Studio Viewport</span>
+               <span className="text-[10px] text-zinc-600 font-[900] uppercase tracking-tighter leading-none">Studio Viewport</span>
             </div>
             <div className="flex items-center gap-6">
                <span className="hidden sm:inline text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Capture: {(zoom * 100).toFixed(0)}%</span>
