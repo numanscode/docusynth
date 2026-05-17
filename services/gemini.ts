@@ -12,7 +12,7 @@ import { ProcessingOptions, ModificationRequest } from "../types";
  */
 
 const getModelName = (): string => {
-  return 'gemini-3.1-flash-preview';
+  return 'gemini-3-flash-preview';
 };
 
 const cleanBase64 = (dataUrl: string): { data: string; mimeType: string } => {
@@ -155,7 +155,7 @@ Return ONLY the final synthesized image data (Base64/Binary). No text, no explan
       
       try {
         const auditResponse = await withRetry(() => callGeminiProxy({
-          model: 'gemini-3.1-flash-preview',
+          model: 'gemini-3-flash-preview',
           contents: [
             { parts: [
               { inlineData: { data: idPart.data, mimeType: idPart.mimeType } },
@@ -233,7 +233,7 @@ Your report must be a technical manifest. DO NOT ESTIMATE. EXTRACT GROUND TRUTH.
 export const improvePrompt = async (prompt: string): Promise<string> => {
   try {
     const response = await withRetry(() => callGeminiProxy({
-      model: 'gemini-3.1-flash-preview',
+      model: 'gemini-3-flash-preview',
       contents: [{ parts: [{ text: `You are a master prompt engineer specializing in neural forensic document synthesis and digital manipulation. 
       Your task is to deconstruct and transform the following user instruction into a multi-layered, forensic-grade operational directive: "${prompt}".
       
